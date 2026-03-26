@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EmptyEpsilon Server Admin</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #071018;
+      --panel: #101a25;
+      --panel-2: #0c141d;
+      --ink: #d9e5f0;
+      --muted: #8ea2b8;
+      --accent: #71d4ff;
+      --danger: #ff8da1;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background:
+        radial-gradient(circle at top, rgba(40, 100, 150, 0.35), transparent 30%),
+        linear-gradient(180deg, #0a1320 0%, var(--bg) 100%);
+      color: var(--ink);
+      font: 15px/1.45 "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    main {
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+    }
+
+    p {
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      margin-top: 20px;
+    }
+
+    .card {
+      padding: 18px;
+      background: rgba(16, 26, 37, 0.92);
+      border: 1px solid rgba(113, 212, 255, 0.18);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    input, select, textarea, button {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: var(--panel-2);
+      color: var(--ink);
+      padding: 10px 12px;
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 140px;
+      resize: vertical;
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 12px;
+    }
+
+    button {
+      cursor: pointer;
+      border-color: rgba(113, 212, 255, 0.28);
+      background: rgba(10, 16, 24, 0.96);
+    }
+
+    button:hover {
+      color: var(--accent);
+      border-color: rgba(113, 212, 255, 0.6);
+    }
+
+    button.danger {
+      border-color: rgba(255, 141, 161, 0.34);
+    }
+
+    #status {
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: rgba(10, 16, 24, 0.86);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--muted);
+      white-space: pre-wrap;
+    }
+
+    code {
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>EmptyEpsilon Server Admin</h1>
+    <p>Controls the experimental HTTP Lua endpoint on the local server. Start the server with <code>httpserver=8080</code>.</p>
+
+    <div class="grid">
+      <section class="card">
+        <label for="admin-endpoint">Admin Endpoint</label>
+        <input id="admin-endpoint" type="text" spellcheck="false">
+
+        <label for="scenario-select" style="margin-top: 14px;">Scenario</label>
+        <select id="scenario-select">
+          <option value="scenario_00_basic.lua">Basic</option>
+          <option value="scenario_03_waves.lua">Waves</option>
+          <option value="scenario_05_beacon.lua">Beacon</option>
+          <option value="scenario_10_empty.lua">Empty</option>
+          <option value="scenario_20_training1.lua">Training 1</option>
+          <option value="scenario_81_pvp.lua">PvP</option>
+        </select>
+
+        <div class="actions">
+          <button id="new-game" type="button">Start Scenario</button>
+          <button id="pause-game" type="button">Pause</button>
+          <button id="unpause-game" type="button">Unpause</button>
+          <button id="shutdown-game" class="danger" type="button">Shutdown</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <label for="lua-code">Custom Lua</label>
+        <textarea id="lua-code" spellcheck="false">setScenario("scenario_00_basic.lua")</textarea>
+        <div class="actions">
+          <button id="run-lua" type="button">Run Lua</button>
+          <button id="clear-lua" type="button">Clear</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="status">admin page ready</div>
+  </main>
+
+  <script>
+    const defaultHost = window.location.hostname || "127.0.0.1";
+    const endpointInput = document.getElementById("admin-endpoint");
+    const scenarioSelect = document.getElementById("scenario-select");
+    const luaCode = document.getElementById("lua-code");
+    const statusNode = document.getElementById("status");
+
+    endpointInput.value = "http://" + defaultHost + ":8080/exec.lua";
+
+    function setStatus(message, isError) {
+      statusNode.textContent = message;
+      statusNode.style.color = isError ? "var(--danger)" : "var(--muted)";
+    }
+
+    async function postLua(lua) {
+      const endpoint = endpointInput.value.trim();
+      if (!endpoint) {
+        setStatus("Admin endpoint is empty.", true);
+        return;
+      }
+
+      try {
+        await fetch(endpoint, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "text/plain" },
+          body: lua
+        });
+        setStatus("Sent Lua to " + endpoint + "\\n\\n" + lua, false);
+      } catch (error) {
+        setStatus("Request failed: " + error, true);
+      }
+    }
+
+    document.getElementById("new-game").addEventListener("click", function() {
+      postLua('setScenario("' + scenarioSelect.value + '")');
+    });
+
+    document.getElementById("pause-game").addEventListener("click", function() {
+      postLua("pauseGame()");
+    });
+
+    document.getElementById("unpause-game").addEventListener("click", function() {
+      postLua("unpauseGame()");
+    });
+
+    document.getElementById("shutdown-game").addEventListener("click", function() {
+      postLua("shutdownGame()");
+    });
+
+    document.getElementById("run-lua").addEventListener("click", function() {
+      postLua(luaCode.value);
+    });
+
+    document.getElementById("clear-lua").addEventListener("click", function() {
+      luaCode.value = "";
+      luaCode.focus();
+    });
+  </script>
+</body>
+</html>

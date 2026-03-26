@@ -124,6 +124,31 @@ ws://127.0.0.1:35667
 This bridge is only a local prototype. It forwards websocket binary messages to a native
 EmptyEpsilon TCP server and is not hardened for production use.
 
+## Optional HTTP Server Control
+
+The headless EmptyEpsilon server also has an experimental HTTP Lua endpoint. To enable it,
+start the native server with an `httpserver` preference:
+
+```bash
+./build-win-msvc/EmptyEpsilon.exe headless=scenario_00_basic.lua server_port=35666 httpserver=8080
+```
+
+That enables:
+
+- `POST /exec.lua` to run Lua code against the current game
+
+A helper script is included for the common cases:
+
+```powershell
+./scripts/ee_server_control.ps1 -Action new-game -Scenario scenario_00_basic.lua
+./scripts/ee_server_control.ps1 -Action pause
+./scripts/ee_server_control.ps1 -Action unpause
+./scripts/ee_server_control.ps1 -Action lua -Code 'setScenario("scenario_03_waves.lua")'
+```
+
+By default the helper targets `http://127.0.0.1:8080/exec.lua`, but `-ServerHost` and `-Port`
+can be overridden if needed.
+
 ## Current Browser Behavior
 
 - The browser build boots directly into a local scenario spectator slice.

@@ -225,6 +225,9 @@
     const diagEnabled = params.get("diag") === "1";
     const diagLines = [];
     const maxDiagLines = 120;
+    const defaultBridgeHost = window.location.hostname || "127.0.0.1";
+    const defaultBridgeScheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const defaultBridgeUrl = defaultBridgeScheme + "://" + defaultBridgeHost + ":35667";
 
     function appendArg(key, value) {
       if (!value) {
@@ -255,6 +258,8 @@
 
     if (params.has("bridge")) {
       bridgeInput.value = params.get("bridge");
+    } else {
+      bridgeInput.value = defaultBridgeUrl;
     }
     if (params.has("username")) {
       playerNameInput.value = params.get("username");
@@ -290,7 +295,7 @@
 
     document.getElementById("launch-bridge").addEventListener("click", function() {
       const nextParams = new URLSearchParams();
-      nextParams.set("bridge", bridgeInput.value.trim() || "ws://127.0.0.1:35667");
+      nextParams.set("bridge", bridgeInput.value.trim() || defaultBridgeUrl);
       nextParams.set("station", stationSelect.value);
       const username = playerNameInput.value.trim();
       if (username) {
@@ -430,7 +435,6 @@
         if (moduleArgs.length) {
           window.EmptyEpsilonDiag("argv: " + moduleArgs.join(" "));
         }
-        canvas.focus();
       },
       monitorRunDependencies: function(left) {
         if (left > 0) {
