@@ -20,6 +20,20 @@ EmptyEpsilon settings are stored in an `options.ini` file located in either the 
 
 See this repository's wiki for guidance on [building EmptyEpsilon from source](https://github.com/daid/EmptyEpsilon/wiki/Build). Several Build subpages on the wiki provide steps for building on specific operating systems, distributions, or hardware.
 
+#### Notes from a clean Windows machine
+
+If you're starting from a fresh Windows dev box, the biggest time saver is to install the full native and wasm toolchains before trying to configure anything.
+
+-   Native Windows builds worked here with Visual Studio 2026 Community using the `Desktop development with C++` workload.
+-   Use the Visual Studio Developer Command Prompt or `VsDevCmd.bat` before running `cmake`, otherwise `cl.exe` and the Windows SDK may not be visible to CMake.
+-   The current SeriousProton input code expects newer SDL2 mouse wheel fields, so use SDL2 `2.32.8` or newer for Windows builds. Older Visual C++ SDL2 packages such as `2.0.16` will fail to compile `SeriousProton/src/windowManager.cpp`.
+-   A working local Ninja generator setup on Windows looked like:
+    `cmake -S . -B build-win-msvc -G Ninja -DSDL2_DIR=<path-to-sdl2-config-dir> -DSERIOUS_PROTON_DIR=../SeriousProton -DWITH_DISCORD=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo`
+-   Copy `SDL2.dll` from the SDL2 package into `build-win-msvc/` before launching `EmptyEpsilon.exe`.
+-   The first WebAssembly build is slow on a clean machine because Emscripten populates its cache and builds bundled libraries. Subsequent wasm builds are much faster.
+-   For the wasm target on Windows, it helps to point CMake at the Emscripten Python explicitly if detection fails:
+    `-DPython3_EXECUTABLE=<emsdk>/python/<version>/python.exe`
+
 ### WebAssembly browser build
 
 An experimental browser target is available for running EmptyEpsilon as a WebAssembly + WebGL app with Emscripten.
@@ -43,6 +57,7 @@ Current limitations:
 -   Emscripten SDK installed and activated
 -   CMake
 -   Ninja
+-   Python 3 available to both `emsdk` and CMake
 -   a sibling [SeriousProton](https://github.com/daid/SeriousProton) checkout at `../SeriousProton`
 
 #### Build the browser target
