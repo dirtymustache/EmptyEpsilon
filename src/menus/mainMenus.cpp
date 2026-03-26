@@ -43,7 +43,11 @@ MainMenu::MainMenu()
         destroy();
     }))->setPosition({50, -230}, sp::Alignment::BottomLeft)->setSize(300, 50);
 
-    (new GuiButton(this, "START_CLIENT", tr("mainMenu", "Start client"), [this]() {
+    string start_client_label = tr("mainMenu", "Start client");
+#ifdef __EMSCRIPTEN__
+    start_client_label = tr("mainMenu", "Join server (WebSocket)");
+#endif
+    (new GuiButton(this, "START_CLIENT", start_client_label, [this]() {
         new ServerBrowserMenu();
         destroy();
     }))->setPosition({50, -170}, sp::Alignment::BottomLeft)->setSize(300, 50);

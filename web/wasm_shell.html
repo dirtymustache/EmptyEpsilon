@@ -84,6 +84,73 @@
       color: var(--accent);
     }
 
+    #controls {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    #controls label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    #controls input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(14, 20, 31, 0.96);
+      color: var(--ink);
+      outline: none;
+    }
+
+    #controls select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(14, 20, 31, 0.96);
+      color: var(--ink);
+      outline: none;
+    }
+
+    #controls input:focus {
+      border-color: rgba(111, 211, 255, 0.5);
+    }
+
+    #controls select:focus {
+      border-color: rgba(111, 211, 255, 0.5);
+    }
+
+    #actions {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    #actions button {
+      padding: 10px 12px;
+      border: 1px solid rgba(111, 211, 255, 0.25);
+      background: rgba(11, 16, 24, 0.92);
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    #actions button:hover {
+      border-color: rgba(111, 211, 255, 0.55);
+      color: var(--accent);
+    }
+
+    #hint {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
     #diag {
       margin-top: 10px;
       max-height: 180px;
@@ -106,7 +173,37 @@
   <div id="canvas-wrap">
     <canvas id="canvas" tabindex="0"></canvas>
     <div id="overlay">
-      <strong>Browser milestone:</strong> local scenario spectator slice. Multiplayer browser networking is still TODO.
+      <strong>Browser milestone:</strong> local spectator and bridge-connected multiplayer client slices are both available.
+      <div id="controls">
+        <label>
+          Bridge URL
+          <input id="bridge-url" type="text" value="ws://127.0.0.1:35667" spellcheck="false">
+        </label>
+        <label>
+          Player Name
+          <input id="player-name" type="text" value="web_user" spellcheck="false">
+        </label>
+        <label>
+          Bridge Station
+          <select id="station-select">
+            <option value="relay" selected>Relay</option>
+            <option value="science">Science</option>
+            <option value="helms">Helms</option>
+            <option value="weapons">Weapons</option>
+            <option value="engineering">Engineering</option>
+            <option value="operations">Operations</option>
+            <option value="tactical">Tactical</option>
+            <option value="singlepilot">Single Pilot</option>
+            <option value="mainscreen">Main Screen</option>
+          </select>
+        </label>
+        <div id="actions">
+          <button id="launch-spectator" type="button">Local Spectator</button>
+          <button id="launch-menu" type="button">Main Menu</button>
+          <button id="launch-bridge" type="button">Bridge Connect</button>
+        </div>
+        <div id="hint">URL params still work: <code>?bridge=ws://127.0.0.1:35667</code>, <code>?station=relay</code>, <code>?mode=menu</code>, <code>?username=web_user</code>.</div>
+      </div>
       <div id="diag">browser shell ready</div>
     </div>
   </div>
@@ -115,10 +212,100 @@
     const overlayNode = document.getElementById("overlay");
     const diagNode = document.getElementById("diag");
     const canvas = document.getElementById("canvas");
+    const bridgeInput = document.getElementById("bridge-url");
+    const playerNameInput = document.getElementById("player-name");
+    const stationSelect = document.getElementById("station-select");
+    let runtimeReady = false;
+    const params = new URLSearchParams(window.location.search);
+    const moduleArgs = [];
+
+    function appendArg(key, value) {
+      if (!value) {
+        return;
+      }
+      moduleArgs.push(key + "=" + value);
+    }
+
+    if (params.has("bridge")) {
+      appendArg("browser_bootstrap", "0");
+      appendArg("browser_connect", params.get("bridge"));
+    }
+    if (params.get("mode") === "menu") {
+      appendArg("browser_bootstrap", "0");
+    }
+    if (params.has("scenario")) {
+      appendArg("browser_scenario", params.get("scenario"));
+    }
+    if (params.has("bootstrap")) {
+      appendArg("browser_bootstrap", params.get("bootstrap"));
+    }
+    if (params.has("username")) {
+      appendArg("username", params.get("username"));
+    }
+    if (params.has("station")) {
+      appendArg("browser_station", params.get("station"));
+    }
+
+    if (params.has("bridge")) {
+      bridgeInput.value = params.get("bridge");
+    }
+    if (params.has("username")) {
+      playerNameInput.value = params.get("username");
+    }
+    if (params.has("station")) {
+      stationSelect.value = params.get("station");
+    }
+
+    function launchWithParams(nextParams) {
+      const url = new URL(window.location.href);
+      url.search = nextParams.toString();
+      window.location.href = url.toString();
+    }
+
+    document.getElementById("launch-spectator").addEventListener("click", function() {
+      const nextParams = new URLSearchParams();
+      const username = playerNameInput.value.trim();
+      if (username) {
+        nextParams.set("username", username);
+      }
+      launchWithParams(nextParams);
+    });
+
+    document.getElementById("launch-menu").addEventListener("click", function() {
+      const nextParams = new URLSearchParams();
+      nextParams.set("mode", "menu");
+      const username = playerNameInput.value.trim();
+      if (username) {
+        nextParams.set("username", username);
+      }
+      launchWithParams(nextParams);
+    });
+
+    document.getElementById("launch-bridge").addEventListener("click", function() {
+      const nextParams = new URLSearchParams();
+      nextParams.set("bridge", bridgeInput.value.trim() || "ws://127.0.0.1:35667");
+      nextParams.set("station", stationSelect.value);
+      const username = playerNameInput.value.trim();
+      if (username) {
+        nextParams.set("username", username);
+      }
+      launchWithParams(nextParams);
+    });
 
     function setStatus(message, isError) {
       statusNode.textContent = message;
       overlayNode.className = isError ? "error" : "";
+    }
+
+    function flushPersistentState() {
+      if (!runtimeReady || !window.Module || typeof Module._ee_browser_save_configuration !== "function") {
+        return;
+      }
+      try {
+        Module._ee_browser_save_configuration();
+      } catch (error) {
+        window.EmptyEpsilonDiag("idbfs: pagehide save skipped");
+      }
     }
 
     window.EmptyEpsilonDiag = function(message) {
@@ -129,7 +316,32 @@
     };
 
     var Module = {
+      arguments: moduleArgs,
       canvas,
+      preRun: [function() {
+        if (typeof FS === "undefined" || typeof IDBFS === "undefined") {
+          window.EmptyEpsilonDiag("idbfs: unavailable in runtime");
+          return;
+        }
+        try {
+          FS.mkdir("/config");
+        } catch (error) {
+          if (!/File exists/.test(String(error))) {
+            throw error;
+          }
+        }
+        FS.mount(IDBFS, {}, "/config");
+        addRunDependency("ee-idbfs-load");
+        window.EmptyEpsilonDiag("idbfs: syncing from browser storage");
+        FS.syncfs(true, function(err) {
+          if (err) {
+            window.EmptyEpsilonDiag("idbfs: initial sync failed");
+          } else {
+            window.EmptyEpsilonDiag("idbfs: initial sync complete");
+          }
+          removeRunDependency("ee-idbfs-load");
+        });
+      }],
       setStatus: function(message) {
         setStatus(message || "Running", false);
       },
@@ -140,8 +352,12 @@
         console.error(message);
       },
       onRuntimeInitialized: function() {
+        runtimeReady = true;
         setStatus("Runtime initialized", false);
         window.EmptyEpsilonDiag("runtime initialized");
+        if (moduleArgs.length) {
+          window.EmptyEpsilonDiag("argv: " + moduleArgs.join(" "));
+        }
         canvas.focus();
       },
       monitorRunDependencies: function(left) {
@@ -156,6 +372,12 @@
     window.addEventListener("error", function(event) {
       window.EmptyEpsilonDiag("startup error: " + event.message);
       setStatus("Startup error: " + event.message, true);
+    });
+    window.addEventListener("pagehide", flushPersistentState);
+    document.addEventListener("visibilitychange", function() {
+      if (document.visibilityState === "hidden") {
+        flushPersistentState();
+      }
     });
   </script>
   {{{ SCRIPT }}}

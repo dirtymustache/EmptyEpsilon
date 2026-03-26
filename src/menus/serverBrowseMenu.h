@@ -22,6 +22,7 @@ private:
     GuiTextEntry* manual_ip;
     GuiButton* connect_button;
     GuiListbox* server_list_box;
+    GuiSelector* browser_station_selector = nullptr;
 
     P<ServerScanner> scanner;
     std::vector<ServerScanner::ServerInfo> server_list;

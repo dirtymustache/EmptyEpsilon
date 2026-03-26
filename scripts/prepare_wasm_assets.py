@@ -13,6 +13,25 @@ MINIMAL_RESOURCE_EXCLUDES = {
     "music",
 }
 
+BRIDGE_RESOURCE_INCLUDE_DIRS = {
+    "cursors",
+    "gui",
+    "locale",
+    "radar",
+    "sfx",
+    "shaders",
+}
+
+BRIDGE_RESOURCE_INCLUDE_FILES = {
+    "gradient.png",
+    "logo_full.png",
+    "logo_icon.png",
+    "logo_white.png",
+    "noise.png",
+    "redicule.png",
+    "waypoint.png",
+}
+
 
 def copy_tree(source: Path, target: Path, ignore=None) -> None:
     if not source.exists():
@@ -25,7 +44,13 @@ def stage_resources(source_root: Path, output_root: Path, profile: str) -> None:
     resource_target = output_root / "resources"
     resource_target.mkdir(parents=True, exist_ok=True)
 
-    if profile == "minimal":
+    if profile == "bridge":
+        for entry in resource_source.iterdir():
+            if entry.is_dir() and entry.name in BRIDGE_RESOURCE_INCLUDE_DIRS:
+                copy_tree(entry, resource_target / entry.name)
+            elif entry.is_file() and entry.name in BRIDGE_RESOURCE_INCLUDE_FILES:
+                shutil.copy2(entry, resource_target / entry.name)
+    elif profile == "minimal":
         copy_tree(
             resource_source,
             resource_target,
@@ -50,7 +75,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", required=True, help="Source repository root")
     parser.add_argument("--output", required=True, help="Output staging directory")
-    parser.add_argument("--profile", choices=("minimal", "full"), default="minimal")
+    parser.add_argument("--profile", choices=("bridge", "minimal", "full"), default="minimal")
     args = parser.parse_args()
 
     source_root = Path(args.source).resolve()
@@ -61,7 +86,8 @@ def main() -> int:
     output_root.mkdir(parents=True, exist_ok=True)
 
     stage_resources(source_root, output_root, args.profile)
-    stage_scripts(source_root, output_root)
+    if args.profile != "bridge":
+        stage_scripts(source_root, output_root)
     stage_packs(source_root, output_root, args.profile)
 
     marker = output_root / f".profile-{args.profile}"

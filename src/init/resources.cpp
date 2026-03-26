@@ -1,4 +1,5 @@
-#include "resources.h"
+#include "init/resources.h"
+#include <resources.h>
 #include <packResourceProvider.h>
 #include <preferenceManager.h>
 

@@ -5,11 +5,19 @@
 #include "gui/hotkeyConfig.h"
 #include <cstring>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #if STEAMSDK
 #include "steam/steam_api.h"
 #include "steamrichpresence.h"
 #endif
 
+namespace
+{
+    string last_configuration_path;
+}
 
 string initConfiguration(int argc, char** argv)
 {
@@ -57,5 +65,32 @@ string initConfiguration(int argc, char** argv)
     }
 
     sp::io::Keybinding::loadKeybindings(configuration_path + "/keybindings.json");
+    last_configuration_path = configuration_path;
     return configuration_path;
 }
+
+void saveConfiguration(const string& configuration_path)
+{
+    PreferencesManager::save(configuration_path + "/options.ini");
+    sp::io::Keybinding::saveKeybindings(configuration_path + "/keybindings.json");
+#ifdef __EMSCRIPTEN__
+    EM_ASM({
+        if (typeof FS !== "undefined" && FS.filesystems && FS.filesystems.IDBFS)
+        {
+            FS.syncfs(false, function(err) {
+                if (typeof window.EmptyEpsilonDiag === "function")
+                    window.EmptyEpsilonDiag(err ? "idbfs: flush failed" : "idbfs: flush complete");
+            });
+        }
+    });
+#endif
+}
+
+#ifdef __EMSCRIPTEN__
+extern "C" EMSCRIPTEN_KEEPALIVE void ee_browser_save_configuration()
+{
+    if (last_configuration_path.empty())
+        return;
+    saveConfiguration(last_configuration_path);
+}
+#endif

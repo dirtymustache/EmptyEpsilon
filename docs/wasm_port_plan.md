@@ -100,14 +100,14 @@ The main blockers are at the platform boundary:
 ### Phase 5: Assets and persistence
 
 - Use Emscripten preload for the initial slice.
-- Keep config/keybindings in ephemeral MEMFS first.
-- Leave IDBFS persistence as a follow-up TODO instead of complicating bootstrap.
+- Keep config/keybindings on browser-backed IDBFS storage.
+- Continue trimming preload profiles so browser smoke tests do not need the full desktop asset set.
 
 ### Phase 6: Networking seam
 
-- Do not force the native TCP/UDP client into the browser milestone.
-- Keep browser milestone local-only first.
-- Document a websocket bridge plan for browser client to native server compatibility.
+- Do not force raw native TCP/UDP sockets into the browser target.
+- Route browser multiplayer through a websocket-backed client transport.
+- Keep LAN discovery disabled in-browser and use a websocket bridge for native server compatibility.
 
 ## First Milestone Definition
 
@@ -117,7 +117,7 @@ The first browser milestone is:
 - launches in a browser and shows a canvas
 - loads packaged assets from the wasm filesystem
 - enters one usable mode automatically
-- uses a local scenario plus spectator view instead of browser multiplayer
+- uses a local scenario plus spectator view instead of requiring browser multiplayer on day one
 
 This keeps scope narrow while proving the major platform seams: startup, rendering, assets, input, and browser main loop.
 
@@ -125,10 +125,17 @@ This keeps scope narrow while proving the major platform seams: startup, renderi
 
 - Browser builds now complete successfully with Emscripten.
 - The `minimal` wasm asset profile reduces the browser data bundle from roughly 332 MB to roughly 75 MB for first-light testing.
+- The `bridge` wasm asset profile reduces menu/connect smoke-test data bundles to roughly 2.7 MB.
 - Local HTTP serving and browser launch are reproducible.
 - The browser path now reaches a working local spectator slice with real scene rendering in headless verification.
 - Browser bootstrap uses a socketless local server path so the first milestone does not depend on native listeners.
+- Browser config and keybindings now persist through an IDBFS-backed `/config` mount.
+- Browser multiplayer now has a working websocket bridge seam:
+  - browser wasm client
+  - websocket bridge
+  - native EmptyEpsilon server
+- Smoke testing has reached the multiplayer ship-selection UI against a native server, including replicated connected-player state.
 - The next blockers are:
-  - browser persistence via IDBFS
-  - trimming the preload further where safe
-  - designing the websocket bridge seam for browser-to-native multiplayer
+  - making the bridge flow less diagnostics-oriented in the browser UX
+  - validating one full station-screen path through the bridge
+  - deciding whether to add reconnect behavior and a more polished bridge launcher

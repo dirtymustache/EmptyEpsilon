@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Status: first usable browser slice is working for local spectator mode
+Status: first usable browser slices are working for local spectator mode and bridge-backed multiplayer connection
 
 Target scope for this pass:
 
@@ -11,6 +11,7 @@ Target scope for this pass:
 - WebGL-backed rendering
 - preloaded assets from Emscripten FS
 - one usable local mode
+- one bridge-backed browser client path to a native server
 
 ## Compatible or Promising Areas
 
@@ -38,12 +39,12 @@ Target scope for this pass:
 - Game networking is built around native TCP/UDP sockets.
 - LAN discovery uses multicast UDP.
 - Master-server scanning uses a background thread plus native address resolution.
-- Browser-safe multiplayer will need a websocket bridge seam.
+- Browser-safe multiplayer now uses a websocket bridge seam.
 
 ### Persistence
 
 - Preferences and keybindings currently save to a normal path.
-- Browser build can run in MEMFS immediately, but real persistence should use IDBFS.
+- Browser builds now mount `/config` on IDBFS for persisted configuration and keybindings.
 
 ### Current rendering status
 
@@ -58,6 +59,18 @@ Target scope for this pass:
   - spectator first update
 - A headless screenshot now shows the spectator radar scene rendered behind the shell overlay.
 - The first-light rendering blocker is resolved for the local spectator slice.
+
+### Current multiplayer status
+
+- The browser build can now connect to a websocket bridge endpoint using a websocket-backed `GameClient` transport.
+- A minimal local bridge prototype can proxy browser websocket traffic to a native EmptyEpsilon TCP server.
+- Headless smoke testing has reached:
+  - websocket upgrade
+  - authentication exchange
+  - client-id assignment
+  - replicated multiplayer state
+  - ship-selection UI with connected players visible
+- Browser LAN/master-server browsing remains disabled.
 
 ### Optional subsystems
 
@@ -84,7 +97,7 @@ Why:
 
 - exact WebGL renderer limitations
 - shader compatibility issues found at runtime
-- browser-visible startup/render instrumentation
-- browser persistence decision
-- websocket bridge design for native server interoperability
+- browser-visible startup/render instrumentation cleanup
+- websocket bridge hardening for native server interoperability
 - asset trimming beyond the current minimal profile
+- station-screen validation through the bridge path

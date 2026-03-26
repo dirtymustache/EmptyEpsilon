@@ -13,9 +13,56 @@
 #include "gui/gui2_textentry.h"
 #include "gui/gui2_button.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+namespace {
+void browserDiag(const string& message)
+{
+    EM_ASM({
+        if (typeof window.EmptyEpsilonDiag === "function")
+            window.EmptyEpsilonDiag(UTF8ToString($0));
+    }, message.c_str());
+}
+
+string browserStationLabel()
+{
+    auto station = PreferencesManager::get("browser_station", "").lower().strip();
+    if (station.empty())
+        return "none";
+    if (station == "mainscreen" || station == "main")
+        return "main screen";
+    return station;
+}
+}
+#endif
+
 JoinServerScreen::JoinServerScreen(const ServerScanner::ServerInfo& target)
 : target(target)
 {
+#ifdef __EMSCRIPTEN__
+    browserDiag("join: ctor target = " + target.name);
+    status_label = new GuiLabel(this, "STATUS", "Connecting to websocket bridge...", 30);
+    status_label->setPosition(0, 260, sp::Alignment::TopCenter)->setSize(900, 60);
+    browser_info_label = new GuiLabel(this, "STATUS_INFO",
+        "Browser multiplayer currently expects a websocket bridge that proxies\n"
+        "to a native EmptyEpsilon server. Raw TCP/UDP is still desktop-only.",
+        24);
+    browser_info_label->setPosition(0, 340, sp::Alignment::TopCenter)->setSize(900, 120);
+    browser_info_label->setText(
+        "Preferred station: " + browserStationLabel() + "\n"
+        "The browser client will try to claim the first available player ship\n"
+        "and launch that station after replication catches up."
+    );
+    (new GuiButton(this, "BTN_CANCEL", tr("button", "Back"), [this]() {
+        destroy();
+        disconnectFromServer();
+        new ServerBrowserMenu();
+    }))->setPosition(50, -50, sp::Alignment::BottomLeft)->setSize(300, 50);
+    new GameClient(VERSION_NUMBER, target.name);
+    browserDiag("join: game client created");
+    return;
+#endif
+
     status_label = new GuiLabel(this, "STATUS", tr("connectserver", "Connecting..."), 30);
     status_label->setPosition(0, 300, sp::Alignment::TopCenter)->setSize(0, 50);
     (new GuiButton(this, "BTN_CANCEL", tr("button", "Cancel"), [this]() {
@@ -54,10 +101,19 @@ JoinServerScreen::JoinServerScreen(const ServerScanner::ServerInfo& target)
 
 void JoinServerScreen::update(float delta)
 {
+    (void)delta;
     switch(game_client->getStatus())
     {
     case GameClient::Connecting:
     case GameClient::Authenticating:
+#ifdef __EMSCRIPTEN__
+        status_label->setText("Connecting to websocket bridge...");
+        if (browser_info_label)
+            browser_info_label->setText(
+                "Preferred station: " + browserStationLabel() + "\n"
+                "Waiting for websocket connection and server authentication."
+            );
+#endif
         //If we are still trying to connect, do nothing.
         break;
     case GameClient::WaitingForPassword:
@@ -70,6 +126,9 @@ void JoinServerScreen::update(float delta)
         }
         break;
     case GameClient::Disconnected: {
+#ifdef __EMSCRIPTEN__
+        browserDiag("join: disconnected reason = " + string(static_cast<int>(game_client->getDisconnectReason())));
+#endif
         auto reason = game_client->getDisconnectReason();
         destroy();
         disconnectFromServer();
@@ -77,6 +136,15 @@ void JoinServerScreen::update(float delta)
         new ServerBrowserMenu(reason);
         } break;
     case GameClient::Connected:
+#ifdef __EMSCRIPTEN__
+        browserDiag("join: game client connected");
+        status_label->setText("Connected to websocket bridge");
+        if (browser_info_label)
+            browser_info_label->setText(
+                "Preferred station: " + browserStationLabel() + "\n"
+                "Connected. Waiting for player state and ship replication."
+            );
+#endif
         if (!target.address.getHumanReadable().empty())
         {
             string last_server = target.address.getHumanReadable()[0];
@@ -91,6 +159,14 @@ void JoinServerScreen::update(float delta)
                     my_player_info = i;
             if (my_player_info && gameGlobalInfo)
             {
+#ifdef __EMSCRIPTEN__
+                if (browser_info_label)
+                    browser_info_label->setText(
+                        "Preferred station: " + browserStationLabel() + "\n"
+                        "Player state received. Opening ship selection flow."
+                    );
+                browserDiag("join: player state ready");
+#endif
                 returnToShipSelection(getRenderLayer());
                 destroy();
             }

@@ -16,6 +16,7 @@
 #include "gui/theme.h"
 #include "menus/mainMenus.h"
 #include "menus/autoConnectScreen.h"
+#include "menus/joinServerMenu.h"
 #include "menus/shipSelectionScreen.h"
 #include "screens/spectatorScreen.h"
 #include "main.h"
@@ -264,6 +265,7 @@ int main(int argc, char** argv)
 
     string tutorial = PreferencesManager::get("tutorial");   // use "00_all.lua" for all tutorials
     string server_scenario = PreferencesManager::get("server_scenario");
+    string browser_connect = PreferencesManager::get("browser_connect");
 
     if (!tutorial.empty())
     {
@@ -274,7 +276,19 @@ int main(int argc, char** argv)
     else if (server_scenario.empty())
     {
 #ifdef __EMSCRIPTEN__
-        if (PreferencesManager::get("browser_bootstrap", "1") != "0")
+        if (!browser_connect.empty())
+        {
+            LOG(Info, "Starting browser websocket bridge connect flow: ", browser_connect);
+            PreferencesManager::set("browser_bridge_url", browser_connect);
+            browserDiag("main: browser bridge connect requested");
+
+            ServerScanner::ServerInfo info;
+            info.type = ServerScanner::ServerType::Manual;
+            info.name = browser_connect;
+            new JoinServerScreen(info);
+            browserDiag("main: join server screen created");
+        }
+        else if (PreferencesManager::get("browser_bootstrap", "1") != "0")
         {
             LOG(Info, "Starting browser bootstrap scenario in spectator mode.");
             browserDiag("main: browser bootstrap enabled");
@@ -348,8 +362,7 @@ int main(int argc, char** argv)
 
     if (PreferencesManager::get("headless") == "")
     {
-        PreferencesManager::save(configuration_path + "/options.ini");
-        sp::io::Keybinding::saveKeybindings(configuration_path + "/keybindings.json");
+        saveConfiguration(configuration_path);
     }
     windows.clear();
     delete engine;

@@ -55,7 +55,7 @@ endif()
 if(EMSCRIPTEN)
     set(WITH_DISCORD OFF CACHE BOOL "Build with Discord support" FORCE)
     set(EE_WASM_ASSET_PROFILE "minimal" CACHE STRING "Asset profile for Emscripten builds")
-    set_property(CACHE EE_WASM_ASSET_PROFILE PROPERTY STRINGS minimal full)
+    set_property(CACHE EE_WASM_ASSET_PROFILE PROPERTY STRINGS bridge minimal full)
     set(EE_WASM_ASSET_DIR "${PROJECT_BINARY_DIR}/wasm_assets" CACHE PATH "Staging directory for Emscripten preloaded assets")
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
 endif()
@@ -740,10 +740,16 @@ if(EMSCRIPTEN)
         "-sNO_EXIT_RUNTIME=1"
         "-sENVIRONMENT=web"
         "-sMAX_WEBGL_VERSION=2"
+        "-lidbfs.js"
         "SHELL:--shell-file ${CMAKE_SOURCE_DIR}/web/wasm_shell.html"
         "SHELL:--preload-file ${EE_WASM_ASSET_DIR}/resources@/resources"
-        "SHELL:--preload-file ${EE_WASM_ASSET_DIR}/scripts@/scripts"
     )
+
+    if(NOT EE_WASM_ASSET_PROFILE STREQUAL "bridge")
+        target_link_options(${PROJECT_NAME} PRIVATE
+            "SHELL:--preload-file ${EE_WASM_ASSET_DIR}/scripts@/scripts"
+        )
+    endif()
 
     if(EE_WASM_ASSET_PROFILE STREQUAL "full")
         target_link_options(${PROJECT_NAME} PRIVATE
