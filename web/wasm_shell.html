@@ -160,6 +160,10 @@
       white-space: pre-wrap;
     }
 
+    #diag.hidden {
+      display: none;
+    }
+
     #overlay.error {
       border-color: rgba(255, 111, 145, 0.45);
     }
@@ -218,6 +222,9 @@
     let runtimeReady = false;
     const params = new URLSearchParams(window.location.search);
     const moduleArgs = [];
+    const diagEnabled = params.get("diag") === "1";
+    const diagLines = [];
+    const maxDiagLines = 120;
 
     function appendArg(key, value) {
       if (!value) {
@@ -297,6 +304,56 @@
       overlayNode.className = isError ? "error" : "";
     }
 
+    function shellControlHasFocus() {
+      const active = document.activeElement;
+      return active instanceof HTMLInputElement ||
+        active instanceof HTMLSelectElement ||
+        active instanceof HTMLTextAreaElement;
+    }
+
+    for (const control of [bridgeInput, playerNameInput, stationSelect]) {
+      control.addEventListener("focus", function() {
+        setStatus("Editing browser launch settings", false);
+      });
+      control.addEventListener("blur", function() {
+        if (!shellControlHasFocus() && runtimeReady) {
+          setStatus("Runtime initialized", false);
+        }
+      });
+    }
+
+    for (const type of ["keydown", "keypress", "keyup"]) {
+      document.addEventListener(type, function(event) {
+        const target = event.target;
+        if (
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLSelectElement ||
+          target instanceof HTMLTextAreaElement
+        ) {
+          event.stopImmediatePropagation();
+        }
+      }, true);
+    }
+
+    function renderDiag() {
+      if (!diagEnabled) {
+        return;
+      }
+      diagNode.textContent = diagLines.join("\n");
+      diagNode.scrollTop = diagNode.scrollHeight;
+    }
+
+    function pushDiagLine(line) {
+      if (!diagEnabled) {
+        return;
+      }
+      diagLines.push(line);
+      while (diagLines.length > maxDiagLines) {
+        diagLines.shift();
+      }
+      renderDiag();
+    }
+
     function flushPersistentState() {
       if (!runtimeReady || !window.Module || typeof Module._ee_browser_save_configuration !== "function") {
         return;
@@ -310,10 +367,25 @@
 
     window.EmptyEpsilonDiag = function(message) {
       const line = String(message || "");
-      diagNode.textContent = (diagNode.textContent + "\n" + line).trim();
-      diagNode.scrollTop = diagNode.scrollHeight;
+      if (!diagEnabled) {
+        if (line.startsWith("startup error:")) {
+          console.error("[EE wasm] " + line);
+        }
+        return;
+      }
+      if (line.startsWith("ws:")) {
+        console.debug("[EE wasm] " + line);
+        return;
+      }
+      pushDiagLine(line);
       console.log("[EE wasm] " + line);
     };
+
+    if (!diagEnabled) {
+      diagNode.classList.add("hidden");
+    } else {
+      pushDiagLine("browser shell ready");
+    }
 
     var Module = {
       arguments: moduleArgs,
