@@ -9,8 +9,8 @@
 #include "config.h"
 
 
-EpsilonServer::EpsilonServer(int server_port)
-: GameServer("Server", VERSION_NUMBER, server_port)
+EpsilonServer::EpsilonServer(int server_port, bool enable_networking)
+: GameServer("Server", VERSION_NUMBER, server_port, enable_networking)
 {
     if (game_server)
     {

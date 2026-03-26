@@ -10,6 +10,16 @@
 #include "gui/debugRenderer.h"
 #include "glObjects.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+static void browserDiag(const string& message)
+{
+    EM_ASM({
+        if (typeof window.EmptyEpsilonDiag === "function")
+            window.EmptyEpsilonDiag(UTF8ToString($0));
+    }, message.c_str());
+}
+#endif
 
 bool createDisplayWindows()
 {
@@ -46,6 +56,9 @@ bool createDisplayWindows()
 
     windows.push_back(new Window({width, height}, fullscreen, warpPostProcessor, fsaa));
     window_render_layers.push_back(defaultRenderLayer);
+#ifdef __EMSCRIPTEN__
+    browserDiag("display: primary window created");
+#endif
 
     if (PreferencesManager::get("multimonitor", "0").toInt() != 0)
     {
@@ -94,14 +107,26 @@ bool createDisplayWindows()
 
     if (gl::isAvailable())
     {
+#ifdef __EMSCRIPTEN__
+        browserDiag("display: GL available, initializing shaders");
+#endif
         if (!ShaderRegistry::Shader::initialize())
         {
             LOG(ERROR, "Failed to initialize shaders, exiting.");
+#ifdef __EMSCRIPTEN__
+            browserDiag("display: shader initialization failed");
+#endif
             SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", "Failed to initialize shaders (possible cause: cannot find shader files)", nullptr);
             return false;
         }
+#ifdef __EMSCRIPTEN__
+        browserDiag("display: shaders initialized");
+#endif
     }
 
     new DebugRenderer(mouseLayer);
+#ifdef __EMSCRIPTEN__
+    browserDiag("display: debug renderer ready");
+#endif
     return true;
 }

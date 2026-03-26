@@ -6,7 +6,7 @@
 class EpsilonServer : public GameServer
 {
 public:
-    EpsilonServer(int server_port);
+    EpsilonServer(int server_port, bool enable_networking = true);
     virtual ~EpsilonServer() = default;
 
     virtual void onNewClient(int32_t client_id) override;

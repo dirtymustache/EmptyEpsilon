@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EmptyEpsilon Web</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #05070b;
+      --panel: rgba(11, 16, 24, 0.88);
+      --ink: #d8e1ec;
+      --muted: #8ea0b5;
+      --accent: #6fd3ff;
+      --danger: #ff6f91;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      background:
+        radial-gradient(circle at top, rgba(49, 94, 157, 0.35), transparent 35%),
+        linear-gradient(180deg, #08111c 0%, var(--bg) 100%);
+      color: var(--ink);
+      font: 14px/1.4 "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+    }
+
+    body {
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    #hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 14px;
+      background: var(--panel);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+    }
+
+    #title {
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    #status {
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #canvas-wrap {
+      position: relative;
+      min-height: 0;
+    }
+
+    #canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+      background: #000;
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 18px auto auto 18px;
+      max-width: min(460px, calc(100% - 36px));
+      padding: 12px 14px;
+      background: rgba(7, 10, 16, 0.76);
+      border: 1px solid rgba(111, 211, 255, 0.25);
+      color: var(--ink);
+      backdrop-filter: blur(12px);
+    }
+
+    #overlay strong {
+      color: var(--accent);
+    }
+
+    #diag {
+      margin-top: 10px;
+      max-height: 180px;
+      overflow: auto;
+      color: var(--muted);
+      font: 12px/1.35 Consolas, "SFMono-Regular", Menlo, monospace;
+      white-space: pre-wrap;
+    }
+
+    #overlay.error {
+      border-color: rgba(255, 111, 145, 0.45);
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div id="title">EmptyEpsilon WebAssembly Build</div>
+    <div id="status">Initializing...</div>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="canvas" tabindex="0"></canvas>
+    <div id="overlay">
+      <strong>Browser milestone:</strong> local scenario spectator slice. Multiplayer browser networking is still TODO.
+      <div id="diag">browser shell ready</div>
+    </div>
+  </div>
+  <script>
+    const statusNode = document.getElementById("status");
+    const overlayNode = document.getElementById("overlay");
+    const diagNode = document.getElementById("diag");
+    const canvas = document.getElementById("canvas");
+
+    function setStatus(message, isError) {
+      statusNode.textContent = message;
+      overlayNode.className = isError ? "error" : "";
+    }
+
+    window.EmptyEpsilonDiag = function(message) {
+      const line = String(message || "");
+      diagNode.textContent = (diagNode.textContent + "\n" + line).trim();
+      diagNode.scrollTop = diagNode.scrollHeight;
+      console.log("[EE wasm] " + line);
+    };
+
+    var Module = {
+      canvas,
+      setStatus: function(message) {
+        setStatus(message || "Running", false);
+      },
+      print: function(message) {
+        console.log(message);
+      },
+      printErr: function(message) {
+        console.error(message);
+      },
+      onRuntimeInitialized: function() {
+        setStatus("Runtime initialized", false);
+        window.EmptyEpsilonDiag("runtime initialized");
+        canvas.focus();
+      },
+      monitorRunDependencies: function(left) {
+        if (left > 0) {
+          setStatus("Downloading assets (" + left + " remaining)", false);
+        } else {
+          setStatus("Starting", false);
+        }
+      }
+    };
+
+    window.addEventListener("error", function(event) {
+      window.EmptyEpsilonDiag("startup error: " + event.message);
+      setStatus("Startup error: " + event.message, true);
+    });
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>

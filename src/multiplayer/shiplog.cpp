@@ -25,7 +25,7 @@ void ShipLogReplication::update(sp::io::DataBuffer& packet)
             addFullUpdate(packet, entity, log);
             log.cleared = false;
         } else if (log.new_entry_count > 0) {
-            auto new_entries = std::min(log.new_entry_count, log.size());
+            uint32_t new_entries = std::min<uint32_t>(log.new_entry_count, static_cast<uint32_t>(log.size()));
             packet.write(CMD_ECS_SET_COMPONENT, component_index, entity.getIndex(), ADDITION, new_entries);
             for(size_t n=log.size() - new_entries; n<log.size(); n++) {
                 const auto& e = log.get(n);
@@ -47,11 +47,11 @@ void ShipLogReplication::receive(sp::ecs::Entity entity, sp::io::DataBuffer& pac
 {
     auto& log = entity.getOrAddComponent<ShipLog>();
     unsigned int update_type = 0;
-    size_t amount = 0;
+    uint32_t amount = 0;
     packet >> update_type >> amount;
     if (update_type == FULL_UPDATE)
         log.clear();
-    for(size_t n=0; n<amount; n++) {
+    for(uint32_t n=0; n<amount; n++) {
         string prefix, message;
         glm::u8vec4 color;
         packet >> prefix >> message >> color;
@@ -66,7 +66,7 @@ void ShipLogReplication::remove(sp::ecs::Entity entity)
 
 void ShipLogReplication::addFullUpdate(sp::io::DataBuffer& packet, sp::ecs::Entity entity, const ShipLog& log)
 {
-    packet.write(CMD_ECS_SET_COMPONENT, component_index, entity.getIndex(), FULL_UPDATE, log.size());
+    packet.write(CMD_ECS_SET_COMPONENT, component_index, entity.getIndex(), FULL_UPDATE, uint32_t(log.size()));
     for(size_t n=0; n<log.size(); n++) {
         const auto& e = log.get(n);
         packet << e.prefix << e.text << e.color;

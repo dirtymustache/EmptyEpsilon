@@ -17,6 +17,7 @@
 #include "menus/mainMenus.h"
 #include "menus/autoConnectScreen.h"
 #include "menus/shipSelectionScreen.h"
+#include "screens/spectatorScreen.h"
 #include "main.h"
 #include "epsilonServer.h"
 #include "httpScriptAccess.h"
@@ -44,6 +45,10 @@
 #include "shaderRegistry.h"
 #include "glObjects.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 glm::vec3 camera_position;
 float camera_yaw;
 float camera_pitch;
@@ -64,6 +69,15 @@ GUI_REGISTER_LAYOUT("verticalbottom", GuiLayoutVerticalBottom);
 GUI_REGISTER_LAYOUT("horizontal", GuiLayoutHorizontal);
 GUI_REGISTER_LAYOUT("horizontalright", GuiLayoutHorizontalRight);
 
+#ifdef __EMSCRIPTEN__
+static void browserDiag(const string& message)
+{
+    EM_ASM({
+        if (typeof window.EmptyEpsilonDiag === "function")
+            window.EmptyEpsilonDiag(UTF8ToString($0));
+    }, message.c_str());
+}
+#endif
 
 int runProxyServer()
 {
@@ -102,10 +116,16 @@ int main(int argc, char** argv)
 #endif
 
     LOG(Info, "Starting...");
+#ifdef __EMSCRIPTEN__
+    browserDiag("main: startup");
+#endif
     new Engine();
     initSystemsAndComponents();
 
     auto configuration_path = initConfiguration(argc, argv);
+#ifdef __EMSCRIPTEN__
+    browserDiag("main: config path = " + configuration_path);
+#endif
 
     if (PreferencesManager::get("headless") == "")
     {
@@ -141,6 +161,9 @@ int main(int argc, char** argv)
     }
 
     initResourcePaths();
+#ifdef __EMSCRIPTEN__
+    browserDiag("main: resource paths initialized");
+#endif
     textureManager.setDefaultSmooth(true);
     textureManager.setDefaultRepeated(true);
     i18n::load("locale/main." + PreferencesManager::get("language", "en") + ".po");
@@ -176,6 +199,9 @@ int main(int argc, char** argv)
     {
         if (!createDisplayWindows())
             return 1;
+#ifdef __EMSCRIPTEN__
+        browserDiag("main: display windows created");
+#endif
     } else {
         new StdinLuaConsole();
     }
@@ -203,7 +229,7 @@ int main(int argc, char** argv)
     // On Android, this requires the 'record audio' permissions,
     // which is always a scary thing for users.
     // Since there is no way to access it (yet) via a touchscreen, compile out.
-#if !defined(ANDROID)
+#if !defined(ANDROID) && !defined(__EMSCRIPTEN__)
     // Set up voice chat and key bindings.
     if (PreferencesManager::get("voice_chat_enabled", "0") == "1")
     {
@@ -214,7 +240,12 @@ int main(int argc, char** argv)
 #endif
 
     P<HardwareController> hardware_controller = new HardwareController();
+#if defined(__EMSCRIPTEN__)
+    (void)hardware_controller;
+    LOG(Info, "Browser build: skipping external hardware configuration.");
+#else
     hardware_controller->loadConfiguration(configuration_path + "/hardware.ini");
+#endif
 
 #if WITH_DISCORD
     {
@@ -241,7 +272,27 @@ int main(int argc, char** argv)
         new TutorialGame(repeat_tutorial, tutorial);
     }
     else if (server_scenario.empty())
-        returnToMainMenu(defaultRenderLayer);
+    {
+#ifdef __EMSCRIPTEN__
+        if (PreferencesManager::get("browser_bootstrap", "1") != "0")
+        {
+            LOG(Info, "Starting browser bootstrap scenario in spectator mode.");
+            browserDiag("main: browser bootstrap enabled");
+            new EpsilonServer(defaultServerPort, false);
+            if (!gameGlobalInfo)
+                return 1;
+            browserDiag("main: local server created");
+            gameGlobalInfo->startScenario(PreferencesManager::get("browser_scenario", "scenario_00_basic.lua"), loadScenarioSettingsFromPrefs());
+            browserDiag("main: scenario started");
+            new SpectatorScreen(defaultRenderLayer);
+            browserDiag("main: spectator screen created");
+        }
+        else
+#endif
+        {
+            returnToMainMenu(defaultRenderLayer);
+        }
+    }
     else
     {
         // server_scenario creates a server running the specified scenario

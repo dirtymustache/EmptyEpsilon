@@ -14,10 +14,14 @@
 string initConfiguration(int argc, char** argv)
 {
     string configuration_path = ".";
+#ifdef __EMSCRIPTEN__
+    configuration_path = "/config";
+#else
     if (getenv("EE_CONF_DIR"))
         configuration_path = string(getenv("EE_CONF_DIR"));
     else if (getenv("HOME"))
         configuration_path = string(getenv("HOME")) + "/.emptyepsilon";
+#endif
 #ifdef STEAMSDK
     {
         char path_buffer[1024];
@@ -45,6 +49,10 @@ string initConfiguration(int argc, char** argv)
             PreferencesManager::setTemporary("username", getenv("USERNAME"));
         else if (getenv("USER"))
             PreferencesManager::setTemporary("username", getenv("USER"));
+#ifdef __EMSCRIPTEN__
+        else
+            PreferencesManager::setTemporary("username", "Browser");
+#endif
 #endif
     }
 
