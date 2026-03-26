@@ -725,6 +725,8 @@ set_target_properties(${PROJECT_NAME}
 if(EMSCRIPTEN)
     set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html")
 
+    configure_file(${CMAKE_SOURCE_DIR}/web/admin.html ${CMAKE_BINARY_DIR}/admin.html COPYONLY)
+
     add_custom_target(prepare_wasm_assets
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/prepare_wasm_assets.py --source ${CMAKE_SOURCE_DIR} --output ${EE_WASM_ASSET_DIR} --profile ${EE_WASM_ASSET_PROFILE}
         BYPRODUCTS "${EE_WASM_ASSET_DIR}/.profile-${EE_WASM_ASSET_PROFILE}"
