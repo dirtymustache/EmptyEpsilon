@@ -20,6 +20,109 @@ EmptyEpsilon settings are stored in an `options.ini` file located in either the 
 
 See this repository's wiki for guidance on [building EmptyEpsilon from source](https://github.com/daid/EmptyEpsilon/wiki/Build). Several Build subpages on the wiki provide steps for building on specific operating systems, distributions, or hardware.
 
+### WebAssembly browser build
+
+An experimental browser target is available for running EmptyEpsilon as a WebAssembly + WebGL app with Emscripten.
+
+Current scope:
+
+-   boots in a browser canvas
+-   supports a local spectator slice
+-   supports a browser client path through a local WebSocket bridge to a native EmptyEpsilon server
+-   includes an admin page for HTTP-based server control and status
+
+Current limitations:
+
+-   still experimental
+-   browser multiplayer requires the bridge helper and a native server
+-   direct LAN discovery and native socket networking are not available in the browser
+-   host and browser client still need to run the same EmptyEpsilon version
+
+#### Prerequisites
+
+-   Emscripten SDK installed and activated
+-   CMake
+-   Ninja
+-   a sibling [SeriousProton](https://github.com/daid/SeriousProton) checkout at `../SeriousProton`
+
+#### Build the browser target
+
+From the EmptyEpsilon repository root:
+
+```bash
+./scripts/build_wasm.sh
+```
+
+To build the heavier browser preload that includes the full staged asset set:
+
+```bash
+EE_WASM_ASSET_PROFILE=full ./scripts/build_wasm.sh
+```
+
+This produces browser artifacts in `build-wasm/`, including:
+
+-   `build-wasm/EmptyEpsilon.html`
+-   `build-wasm/EmptyEpsilon.js`
+-   `build-wasm/EmptyEpsilon.wasm`
+-   `build-wasm/EmptyEpsilon.data`
+
+#### Serve the browser build
+
+Use the local cache-aware helper instead of a plain static file server:
+
+```bash
+python scripts/serve_wasm.py --host 127.0.0.1 --port 18086 --directory build-wasm
+```
+
+Then open:
+
+```text
+http://127.0.0.1:18086/EmptyEpsilon.html
+```
+
+#### Run the full local browser stack
+
+1. Start a native server:
+
+```powershell
+.\build-win-msvc\EmptyEpsilon.exe headless=scenario_00_basic.lua server_port=35666 httpserver=8080
+```
+
+2. Start the WebSocket bridge:
+
+```bash
+python scripts/wasm_ws_bridge.py --listen-host 127.0.0.1 --listen-port 35667 --target-host 127.0.0.1 --target-port 35666 --verbose
+```
+
+3. Start the browser HTTP server:
+
+```bash
+python scripts/serve_wasm.py --host 127.0.0.1 --port 18086 --directory build-wasm
+```
+
+4. Open the browser client:
+
+```text
+http://127.0.0.1:18086/EmptyEpsilon.html?bridge=ws://127.0.0.1:35667&station=relay&username=web_user
+```
+
+#### Useful browser pages
+
+-   Main browser launcher:
+    `http://127.0.0.1:18086/EmptyEpsilon.html`
+-   Browser bridge launch example:
+    `http://127.0.0.1:18086/EmptyEpsilon.html?bridge=ws://127.0.0.1:35667&station=relay&username=web_user`
+-   Server admin page:
+    `http://127.0.0.1:18086/admin.html`
+
+The admin page talks to the experimental HTTP Lua endpoint on the native server and shows current server status, scenario, mission time, pause state, and connected players.
+
+More browser-target details are documented in:
+
+-   [docs/wasm_build.md](docs/wasm_build.md)
+-   [docs/wasm_networking_notes.md](docs/wasm_networking_notes.md)
+-   [docs/wasm_compatibility_report.md](docs/wasm_compatibility_report.md)
+
 ## Community
 
 For information on EmptyEpsilon's Discord and forums communities, and regularly planned hosted game sessions, see the [EmptyEpsilon website](https://daid.github.io/EmptyEpsilon/#tabs=6). If you run public EmptyEpsilon games or use it in your gaming projects, [file an issue](https://github.com/daid/EmptyEpsilon/issues) to request to be added to that page.
