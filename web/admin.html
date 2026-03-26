@@ -84,6 +84,24 @@
       margin-top: 12px;
     }
 
+    .scenario-grid {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      margin-top: 10px;
+    }
+
+    .scenario-chip {
+      width: 100%;
+      text-align: left;
+    }
+
+    .scenario-chip.active {
+      color: var(--accent);
+      border-color: rgba(113, 212, 255, 0.75);
+      background: rgba(18, 30, 42, 0.96);
+    }
+
     button {
       cursor: pointer;
       border-color: rgba(113, 212, 255, 0.28);
@@ -178,15 +196,14 @@
         <label for="admin-endpoint">Admin Endpoint</label>
         <input id="admin-endpoint" type="text" spellcheck="false">
 
+        <label for="scenario-category" style="margin-top: 14px;">Category</label>
+        <select id="scenario-category"></select>
+
         <label for="scenario-select" style="margin-top: 14px;">Scenario</label>
-        <select id="scenario-select">
-          <option value="scenario_00_basic.lua">Basic</option>
-          <option value="scenario_03_waves.lua">Waves</option>
-          <option value="scenario_05_beacon.lua">Beacon</option>
-          <option value="scenario_10_empty.lua">Empty</option>
-          <option value="scenario_20_training1.lua">Training 1</option>
-          <option value="scenario_81_pvp.lua">PvP</option>
-        </select>
+        <select id="scenario-select"></select>
+
+        <label for="scenario-file" style="margin-top: 14px;">Scenario File</label>
+        <input id="scenario-file" type="text" spellcheck="false" autocomplete="off" value="scenario_00_basic.lua">
 
         <div class="actions">
           <button id="new-game" type="button">Start Scenario</button>
@@ -225,7 +242,9 @@
   <script>
     const defaultHost = window.location.hostname || "127.0.0.1";
     const endpointInput = document.getElementById("admin-endpoint");
+    const scenarioCategory = document.getElementById("scenario-category");
     const scenarioSelect = document.getElementById("scenario-select");
+    const scenarioFile = document.getElementById("scenario-file");
     const luaCode = document.getElementById("lua-code");
     const statusNode = document.getElementById("status");
     const statusServerName = document.getElementById("status-server-name");
@@ -235,8 +254,75 @@
     const statusPaused = document.getElementById("status-paused");
     const statusPlayerCount = document.getElementById("status-player-count");
     const playerList = document.getElementById("player-list");
+    let scenarioCatalogue = [];
 
     endpointInput.value = "http://" + defaultHost + ":8080/exec.lua";
+
+    function getScenariosEndpoint() {
+      const execEndpoint = endpointInput.value.trim();
+      if (!execEndpoint) {
+        return "";
+      }
+      return execEndpoint.replace(/\/exec\.lua(?:\?.*)?$/, "/scenarios.js");
+    }
+
+    function renderScenarioOptions(categoryName, selectedFilename) {
+      const category = scenarioCatalogue.find(function(entry) {
+        return entry.name === categoryName;
+      });
+
+      scenarioSelect.innerHTML = "";
+      if (!category) {
+        return;
+      }
+
+      category.scenarios.forEach(function(entry, index) {
+        const option = document.createElement("option");
+        option.value = entry.filename;
+        option.textContent = entry.name;
+        if ((selectedFilename && entry.filename === selectedFilename) || (!selectedFilename && index === 0)) {
+          option.selected = true;
+        }
+        scenarioSelect.appendChild(option);
+      });
+
+      if (scenarioSelect.value) {
+        scenarioFile.value = scenarioSelect.value;
+      }
+    }
+
+    function renderScenarioCategories(selectedFilename) {
+      scenarioCategory.innerHTML = "";
+      scenarioCatalogue.forEach(function(category, index) {
+        const option = document.createElement("option");
+        option.value = category.name;
+        option.textContent = category.name;
+        if (selectedFilename && category.scenarios.some(function(entry) { return entry.filename === selectedFilename; })) {
+          option.selected = true;
+        } else if (!selectedFilename && index === 0) {
+          option.selected = true;
+        }
+        scenarioCategory.appendChild(option);
+      });
+
+      if (scenarioCategory.value) {
+        renderScenarioOptions(scenarioCategory.value, selectedFilename);
+      }
+    }
+
+    function syncScenarioSelectionFromFile() {
+      const filename = scenarioFile.value.trim();
+      for (const category of scenarioCatalogue) {
+        const match = category.scenarios.find(function(entry) {
+          return entry.filename === filename;
+        });
+        if (match) {
+          scenarioCategory.value = category.name;
+          renderScenarioOptions(category.name, filename);
+          return;
+        }
+      }
+    }
 
     function setStatus(message, isError) {
       statusNode.textContent = message;
@@ -284,6 +370,11 @@
       }
     };
 
+    window.EmptyEpsilonAdminScenarios = function(data) {
+      scenarioCatalogue = data.categories || [];
+      renderScenarioCategories(scenarioFile.value.trim());
+    };
+
     function pollStatus() {
       const endpoint = getStatusEndpoint();
       if (!endpoint) {
@@ -294,6 +385,23 @@
       script.async = true;
       script.onerror = function() {
         setStatus("Status poll failed for " + endpoint, true);
+      };
+      document.body.appendChild(script);
+      window.setTimeout(function() {
+        script.remove();
+      }, 5000);
+    }
+
+    function pollScenarios() {
+      const endpoint = getScenariosEndpoint();
+      if (!endpoint) {
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = endpoint + "?_ts=" + Date.now();
+      script.async = true;
+      script.onerror = function() {
+        setStatus("Scenario list poll failed for " + endpoint, true);
       };
       document.body.appendChild(script);
       window.setTimeout(function() {
@@ -323,7 +431,7 @@
     }
 
     document.getElementById("new-game").addEventListener("click", function() {
-      postLua('setScenario("' + scenarioSelect.value + '")');
+      postLua('setScenario("' + scenarioFile.value.trim() + '")');
     });
 
     document.getElementById("pause-game").addEventListener("click", function() {
@@ -347,6 +455,19 @@
       luaCode.focus();
     });
 
+    scenarioCategory.addEventListener("change", function() {
+      renderScenarioOptions(scenarioCategory.value, scenarioFile.value.trim());
+    });
+
+    scenarioSelect.addEventListener("change", function() {
+      scenarioFile.value = scenarioSelect.value;
+    });
+
+    scenarioFile.addEventListener("change", function() {
+      syncScenarioSelectionFromFile();
+    });
+
+    pollScenarios();
     pollStatus();
     window.setInterval(pollStatus, 2000);
   </script>

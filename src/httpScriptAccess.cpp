@@ -1,6 +1,7 @@
 #include "httpScriptAccess.h"
 #include "gameGlobalInfo.h"
 #include "playerInfo.h"
+#include "scenarioInfo.h"
 #include "script.h"
 #include "crewPosition.h"
 #include "multiplayer_server.h"
@@ -84,6 +85,43 @@ string buildAdminStatusJson()
     json += "}";
     return json;
 }
+
+string buildScenarioListJson()
+{
+    string json = "{";
+    json += "\"categories\":[";
+
+    auto categories = ScenarioInfo::getCategories();
+    bool first_category = true;
+    for (const auto& category : categories)
+    {
+        if (!first_category)
+            json += ",";
+        first_category = false;
+        json += "{";
+        json += "\"name\":\"" + jsonEscape(category) + "\",";
+        json += "\"scenarios\":[";
+
+        bool first_scenario = true;
+        for (const auto& info : ScenarioInfo::getScenarios(category))
+        {
+            if (!first_scenario)
+                json += ",";
+            first_scenario = false;
+            json += "{";
+            json += "\"filename\":\"" + jsonEscape(info.filename) + "\",";
+            json += "\"name\":\"" + jsonEscape(info.name) + "\"";
+            json += "}";
+        }
+
+        json += "]";
+        json += "}";
+    }
+
+    json += "]";
+    json += "}";
+    return json;
+}
 }
 
 EEHttpServer::EEHttpServer(int port, string static_file_path)
@@ -109,6 +147,10 @@ EEHttpServer::EEHttpServer(int port, string static_file_path)
     server.addURLHandler("/status.js", [](const sp::io::http::Server::Request&) -> string
     {
         return "window.EmptyEpsilonAdminStatus && window.EmptyEpsilonAdminStatus(" + buildAdminStatusJson() + ");";
+    });
+    server.addURLHandler("/scenarios.js", [](const sp::io::http::Server::Request&) -> string
+    {
+        return "window.EmptyEpsilonAdminScenarios && window.EmptyEpsilonAdminScenarios(" + buildScenarioListJson() + ");";
     });
     server.addURLHandler("/get.lua", [](const sp::io::http::Server::Request& request) -> string
     {

@@ -3,6 +3,7 @@
 #include <io/keybinding.h>
 #include <preferenceManager.h>
 #include "gui/hotkeyConfig.h"
+#include "soundManager.h"
 #include <cstring>
 
 #ifdef __EMSCRIPTEN__
@@ -92,5 +93,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE void ee_browser_save_configuration()
     if (last_configuration_path.empty())
         return;
     saveConfiguration(last_configuration_path);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE void ee_browser_play_test_sound()
+{
+    if (!soundManager)
+        return;
+    soundManager->playSound("sfx/button.wav");
 }
 #endif

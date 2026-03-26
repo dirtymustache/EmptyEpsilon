@@ -206,7 +206,11 @@
           <button id="launch-menu" type="button">Main Menu</button>
           <button id="launch-bridge" type="button">Bridge Connect</button>
         </div>
+        <div id="actions">
+          <button id="test-audio" type="button">Test Audio</button>
+        </div>
         <div id="hint">URL params still work: <code>?bridge=ws://127.0.0.1:35667</code>, <code>?station=relay</code>, <code>?mode=menu</code>, <code>?username=web_user</code>.</div>
+        <div id="audio-state" style="margin-top: 6px; color: var(--muted); font-size: 12px;">Audio: waiting for runtime</div>
       </div>
       <div id="diag">browser shell ready</div>
     </div>
@@ -219,6 +223,7 @@
     const bridgeInput = document.getElementById("bridge-url");
     const playerNameInput = document.getElementById("player-name");
     const stationSelect = document.getElementById("station-select");
+    const audioStateNode = document.getElementById("audio-state");
     let runtimeReady = false;
     const params = new URLSearchParams(window.location.search);
     const moduleArgs = [];
@@ -309,6 +314,14 @@
       overlayNode.className = isError ? "error" : "";
     }
 
+    function updateAudioState() {
+      if (!window.Module || !Module.SDL2 || !Module.SDL2.audioContext) {
+        audioStateNode.textContent = "Audio: no browser audio context yet";
+        return;
+      }
+      audioStateNode.textContent = "Audio: context " + Module.SDL2.audioContext.state;
+    }
+
     function shellControlHasFocus() {
       const active = document.activeElement;
       return active instanceof HTMLInputElement ||
@@ -370,6 +383,25 @@
       }
     }
 
+    function tryResumeBrowserAudio() {
+      if (!window.Module || !Module.SDL2 || !Module.SDL2.audioContext) {
+        updateAudioState();
+        return;
+      }
+      const ctx = Module.SDL2.audioContext;
+      if (ctx.state === "suspended") {
+        ctx.resume().then(function() {
+          window.EmptyEpsilonDiag("audio: resumed browser audio context");
+          updateAudioState();
+        }).catch(function(error) {
+          window.EmptyEpsilonDiag("audio: resume failed: " + error);
+          updateAudioState();
+        });
+      } else {
+        updateAudioState();
+      }
+    }
+
     window.EmptyEpsilonDiag = function(message) {
       const line = String(message || "");
       if (!diagEnabled) {
@@ -391,6 +423,16 @@
     } else {
       pushDiagLine("browser shell ready");
     }
+
+    document.getElementById("test-audio").addEventListener("click", function() {
+      tryResumeBrowserAudio();
+      if (runtimeReady && window.Module && typeof Module._ee_browser_play_test_sound === "function") {
+        Module._ee_browser_play_test_sound();
+        setStatus("Triggered test sound", false);
+      } else {
+        setStatus("Runtime not ready for audio test", true);
+      }
+    });
 
     var Module = {
       arguments: moduleArgs,
@@ -432,6 +474,7 @@
         runtimeReady = true;
         setStatus("Runtime initialized", false);
         window.EmptyEpsilonDiag("runtime initialized");
+        updateAudioState();
         if (moduleArgs.length) {
           window.EmptyEpsilonDiag("argv: " + moduleArgs.join(" "));
         }
@@ -449,6 +492,9 @@
       window.EmptyEpsilonDiag("startup error: " + event.message);
       setStatus("Startup error: " + event.message, true);
     });
+    for (const eventName of ["pointerdown", "touchstart", "mousedown", "keydown"]) {
+      window.addEventListener(eventName, tryResumeBrowserAudio, { passive: true });
+    }
     window.addEventListener("pagehide", flushPersistentState);
     document.addEventListener("visibilitychange", function() {
       if (document.visibilityState === "hidden") {

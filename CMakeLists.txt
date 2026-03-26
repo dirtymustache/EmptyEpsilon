@@ -741,6 +741,8 @@ if(EMSCRIPTEN)
         "-sENVIRONMENT=web"
         "-sMAX_WEBGL_VERSION=2"
         "-lidbfs.js"
+        "SHELL:--use-preload-cache"
+        "SHELL:--indexedDB-name=EmptyEpsilonPreloadCache"
         "SHELL:--shell-file ${CMAKE_SOURCE_DIR}/web/wasm_shell.html"
         "SHELL:--preload-file ${EE_WASM_ASSET_DIR}/resources@/resources"
     )
