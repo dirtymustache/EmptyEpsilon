@@ -402,6 +402,17 @@
       }
     }
 
+    function ensureEngineAudioStarted() {
+      if (!runtimeReady || !window.Module || typeof Module._ee_browser_ensure_audio_started !== "function") {
+        return false;
+      }
+      try {
+        return !!Module._ee_browser_ensure_audio_started();
+      } catch (error) {
+        return false;
+      }
+    }
+
     window.EmptyEpsilonDiag = function(message) {
       const line = String(message || "");
       if (!diagEnabled) {
@@ -426,6 +437,7 @@
 
     document.getElementById("test-audio").addEventListener("click", function() {
       tryResumeBrowserAudio();
+      ensureEngineAudioStarted();
       if (runtimeReady && window.Module && typeof Module._ee_browser_play_test_sound === "function") {
         Module._ee_browser_play_test_sound();
         setStatus("Triggered test sound", false);
@@ -493,7 +505,10 @@
       setStatus("Startup error: " + event.message, true);
     });
     for (const eventName of ["pointerdown", "touchstart", "mousedown", "keydown"]) {
-      window.addEventListener(eventName, tryResumeBrowserAudio, { passive: true });
+      window.addEventListener(eventName, function() {
+        tryResumeBrowserAudio();
+        ensureEngineAudioStarted();
+      }, { passive: true });
     }
     window.addEventListener("pagehide", flushPersistentState);
     document.addEventListener("visibilitychange", function() {

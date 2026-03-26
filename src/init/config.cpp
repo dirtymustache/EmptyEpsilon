@@ -1,4 +1,5 @@
 #include "config.h"
+#include "engine.h"
 #include <stringImproved.h>
 #include <io/keybinding.h>
 #include <preferenceManager.h>
@@ -93,6 +94,13 @@ extern "C" EMSCRIPTEN_KEEPALIVE void ee_browser_save_configuration()
     if (last_configuration_path.empty())
         return;
     saveConfiguration(last_configuration_path);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int ee_browser_ensure_audio_started()
+{
+    if (!engine)
+        return 0;
+    return engine->ensureAudioStarted() ? 1 : 0;
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE void ee_browser_play_test_sound()
