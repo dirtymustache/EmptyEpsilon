@@ -108,6 +108,61 @@
       white-space: pre-wrap;
     }
 
+    #server-status {
+      margin-top: 20px;
+      padding: 18px;
+      background: rgba(16, 26, 37, 0.92);
+      border: 1px solid rgba(113, 212, 255, 0.18);
+    }
+
+    #server-status h2 {
+      margin: 0 0 12px;
+    }
+
+    .status-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      margin-bottom: 16px;
+    }
+
+    .status-box {
+      padding: 10px 12px;
+      background: #0a0f15;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .status-box strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    #player-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .player-card {
+      padding: 10px 12px;
+      background: #0a0f15;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .player-card .title {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .player-card .meta {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
     code {
       color: var(--accent);
     }
@@ -151,6 +206,19 @@
       </section>
     </div>
 
+    <section id="server-status">
+      <h2>Server Status</h2>
+      <div class="status-grid">
+        <div class="status-box"><strong>Server</strong><span id="status-server-name">Unknown</span></div>
+        <div class="status-box"><strong>Scenario</strong><span id="status-scenario">Unknown</span></div>
+        <div class="status-box"><strong>Mission Time</strong><span id="status-mission-time">Unknown</span></div>
+        <div class="status-box"><strong>Game Speed</strong><span id="status-game-speed">Unknown</span></div>
+        <div class="status-box"><strong>Paused</strong><span id="status-paused">Unknown</span></div>
+        <div class="status-box"><strong>Players</strong><span id="status-player-count">0</span></div>
+      </div>
+      <div id="player-list">No player data yet.</div>
+    </section>
+
     <div id="status">admin page ready</div>
   </main>
 
@@ -160,12 +228,77 @@
     const scenarioSelect = document.getElementById("scenario-select");
     const luaCode = document.getElementById("lua-code");
     const statusNode = document.getElementById("status");
+    const statusServerName = document.getElementById("status-server-name");
+    const statusScenario = document.getElementById("status-scenario");
+    const statusMissionTime = document.getElementById("status-mission-time");
+    const statusGameSpeed = document.getElementById("status-game-speed");
+    const statusPaused = document.getElementById("status-paused");
+    const statusPlayerCount = document.getElementById("status-player-count");
+    const playerList = document.getElementById("player-list");
 
     endpointInput.value = "http://" + defaultHost + ":8080/exec.lua";
 
     function setStatus(message, isError) {
       statusNode.textContent = message;
       statusNode.style.color = isError ? "var(--danger)" : "var(--muted)";
+    }
+
+    function getStatusEndpoint() {
+      const execEndpoint = endpointInput.value.trim();
+      if (!execEndpoint) {
+        return "";
+      }
+      return execEndpoint.replace(/\/exec\.lua(?:\?.*)?$/, "/status.js");
+    }
+
+    function renderPlayer(player) {
+      const positions = (player.positions || [])
+        .map(function(monitor) {
+          return monitor.join(", ");
+        })
+        .filter(function(value) { return value.length > 0; });
+      const roleSummary = positions.length ? positions.join(" | ") : "No station selected";
+      const title = player.name || ("Client " + player.client_id);
+      return [
+        '<div class="player-card">',
+        '<div class="title">' + title + '</div>',
+        '<div class="meta">client_id=' + player.client_id + '</div>',
+        '<div class="meta">' + roleSummary + '</div>',
+        player.ship_id ? '<div class="meta">ship=' + player.ship_id + '</div>' : '',
+        '</div>'
+      ].join("");
+    }
+
+    window.EmptyEpsilonAdminStatus = function(data) {
+      statusServerName.textContent = data.server_name || "Unknown";
+      statusScenario.textContent = data.scenario || "Unknown";
+      statusMissionTime.textContent = data.mission_time || "Unknown";
+      statusGameSpeed.textContent = String(data.game_speed ?? "Unknown");
+      statusPaused.textContent = data.paused ? "Yes" : "No";
+      statusPlayerCount.textContent = String(data.player_count ?? 0);
+
+      if (data.players && data.players.length) {
+        playerList.innerHTML = data.players.map(renderPlayer).join("");
+      } else {
+        playerList.textContent = "No connected players.";
+      }
+    };
+
+    function pollStatus() {
+      const endpoint = getStatusEndpoint();
+      if (!endpoint) {
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = endpoint + "?_ts=" + Date.now();
+      script.async = true;
+      script.onerror = function() {
+        setStatus("Status poll failed for " + endpoint, true);
+      };
+      document.body.appendChild(script);
+      window.setTimeout(function() {
+        script.remove();
+      }, 5000);
     }
 
     async function postLua(lua) {
@@ -183,6 +316,7 @@
           body: lua
         });
         setStatus("Sent Lua to " + endpoint + "\\n\\n" + lua, false);
+        window.setTimeout(pollStatus, 500);
       } catch (error) {
         setStatus("Request failed: " + error, true);
       }
@@ -212,6 +346,9 @@
       luaCode.value = "";
       luaCode.focus();
     });
+
+    pollStatus();
+    window.setInterval(pollStatus, 2000);
   </script>
 </body>
 </html>
