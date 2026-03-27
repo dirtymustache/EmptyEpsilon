@@ -72,14 +72,20 @@ MainMenu::MainMenu()
         destroy();
     }))->setPosition({50, -110}, sp::Alignment::BottomLeft)->setSize(300, 50);
 
+#ifndef __EMSCRIPTEN__
     (new GuiButton(this, "QUIT", tr("mainMenu", "Quit"), []() {
         engine->shutdown();
     }))->setPosition({50, -50}, sp::Alignment::BottomLeft)->setSize(300, 50);
+#endif
 
+    glm::vec2 tutorials_position = {370, -50};
+#ifdef __EMSCRIPTEN__
+    tutorials_position = {50, -50};
+#endif
     (new GuiButton(this, "START_TUTORIAL", tr("mainMenu", "Tutorials"), [this]() {
         new TutorialMenu();
         destroy();
-    }))->setPosition({370, -50}, sp::Alignment::BottomLeft)->setSize(300, 50);
+    }))->setPosition(tutorials_position, sp::Alignment::BottomLeft)->setSize(300, 50);
 
     float y = 100;
     (new GuiLabel(this, "CREDITS", tr("Credits", "Credits"), 25))->setAlignment(sp::Alignment::CenterRight)->setPosition(-50, y, sp::Alignment::TopRight)->setSize(0, 25); y += 25;
