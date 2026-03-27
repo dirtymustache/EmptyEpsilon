@@ -29,10 +29,16 @@ If you're starting from a fresh Windows dev box, the biggest time saver is to in
 -   The current SeriousProton input code expects newer SDL2 mouse wheel fields, so use SDL2 `2.32.8` or newer for Windows builds. Older Visual C++ SDL2 packages such as `2.0.16` will fail to compile `SeriousProton/src/windowManager.cpp`.
 -   A working local Ninja generator setup on Windows looked like:
     `cmake -S . -B build-win-msvc -G Ninja -DSDL2_DIR=<path-to-sdl2-config-dir> -DSERIOUS_PROTON_DIR=../SeriousProton -DWITH_DISCORD=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo`
--   Copy `SDL2.dll` from the SDL2 package into `build-win-msvc/` before launching `EmptyEpsilon.exe`.
+-   Keep the EmptyEpsilon and SeriousProton checkouts side by side. A working layout here was:
+    `../EmptyEpsilon`, `../SeriousProton`, and `../emsdk`
+-   If you use a Conda-provided SDL2/FreeType on Windows, launch `EmptyEpsilon.exe` with both `build-win-msvc/` and the Conda `Library/bin` directory at the front of `PATH`, otherwise Windows can pick up the wrong DLLs from unrelated software already on `PATH`.
+-   Launch the native server and client from the EmptyEpsilon repository root as the working directory, not from `build-win-msvc/`, so the game can find `packs/`, `gui/`, and the rest of the staged assets.
 -   The first WebAssembly build is slow on a clean machine because Emscripten populates its cache and builds bundled libraries. Subsequent wasm builds are much faster.
 -   For the wasm target on Windows, it helps to point CMake at the Emscripten Python explicitly if detection fails:
     `-DPython3_EXECUTABLE=<emsdk>/python/<version>/python.exe`
+-   On Windows, `emcmake cmake` may mis-detect a compiler if `CC` or `CXX` are already set in the environment. Clearing those variables before configuring the wasm build avoided broken compiler detection here.
+-   If plain `ninja` is not already on `PATH`, adding the Visual Studio CMake/Ninja directory also worked for the wasm configure/build path:
+    `C:\Program Files (x86)\Microsoft Visual Studio\<version>\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja`
 
 ### WebAssembly browser build
 
@@ -100,8 +106,10 @@ http://127.0.0.1:18086/EmptyEpsilon.html
 1. Start a native server:
 
 ```powershell
-.\build-win-msvc\EmptyEpsilon.exe headless=scenario_00_basic.lua server_port=35666 httpserver=8080
+.\build-win-msvc\EmptyEpsilon.exe headless=1 server_scenario=scenario_00_basic.lua server_port=35666 httpserver=8080
 ```
+
+Run that command from the EmptyEpsilon repository root. The current code path expects `server_scenario=...`; the older `headless=<scenario>` form is not the reliable startup path on this branch.
 
 2. Start the WebSocket bridge:
 
