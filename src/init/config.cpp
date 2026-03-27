@@ -26,6 +26,31 @@ string initConfiguration(int argc, char** argv)
     string configuration_path = ".";
 #ifdef __EMSCRIPTEN__
     configuration_path = "/config";
+    string browser_profile;
+    for(int n=1; n<argc; n++)
+    {
+        string argument = argv[n];
+        auto parts = argument.split("=");
+        if (parts.size() == 2 && parts[0].strip() == "browser_profile")
+        {
+            browser_profile = parts[1].strip().lower();
+            break;
+        }
+    }
+    if (!browser_profile.empty())
+    {
+        string safe_profile;
+        for (char ch : browser_profile)
+        {
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' || ch == '.')
+                safe_profile += ch;
+            else
+                safe_profile += '-';
+        }
+        safe_profile = safe_profile.strip('-');
+        if (!safe_profile.empty())
+            configuration_path = "/config-" + safe_profile;
+    }
 #else
     if (getenv("EE_CONF_DIR"))
         configuration_path = string(getenv("EE_CONF_DIR"));

@@ -70,14 +70,7 @@
     }
 
     #overlay {
-      position: absolute;
-      inset: 18px auto auto 18px;
-      max-width: min(460px, calc(100% - 36px));
-      padding: 12px 14px;
-      background: rgba(7, 10, 16, 0.76);
-      border: 1px solid rgba(111, 211, 255, 0.25);
-      color: var(--ink);
-      backdrop-filter: blur(12px);
+      display: none;
     }
 
     #overlay strong {
@@ -234,6 +227,15 @@
     const defaultBridgeScheme = window.location.protocol === "https:" ? "wss" : "ws";
     const defaultBridgeUrl = defaultBridgeScheme + "://" + defaultBridgeHost + ":35667";
 
+    function sanitizeProfileName(value) {
+      return String(value || "").trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+    }
+
+    const requestedProfile = params.get("profile") || params.get("username") || "";
+    const profileName = sanitizeProfileName(requestedProfile);
+    const activeProfileLabel = profileName || "default";
+    const configMountPoint = profileName ? "/config-" + profileName : "/config";
+
     function appendArg(key, value) {
       if (!value) {
         return;
@@ -244,18 +246,19 @@
     if (params.has("bridge")) {
       appendArg("browser_bootstrap", "0");
       appendArg("browser_connect", params.get("bridge"));
-    }
-    if (params.get("mode") === "menu") {
+    } else if (params.has("bootstrap")) {
+      appendArg("browser_bootstrap", params.get("bootstrap"));
+    } else {
       appendArg("browser_bootstrap", "0");
     }
     if (params.has("scenario")) {
       appendArg("browser_scenario", params.get("scenario"));
     }
-    if (params.has("bootstrap")) {
-      appendArg("browser_bootstrap", params.get("bootstrap"));
-    }
     if (params.has("username")) {
       appendArg("username", params.get("username"));
+    }
+    if (profileName) {
+      appendArg("browser_profile", profileName);
     }
     if (params.has("station")) {
       appendArg("browser_station", params.get("station"));
@@ -310,7 +313,8 @@
     });
 
     function setStatus(message, isError) {
-      statusNode.textContent = message;
+      const suffix = " [profile " + activeProfileLabel + "]";
+      statusNode.textContent = (message || "") + suffix;
       overlayNode.className = isError ? "error" : "";
     }
 
@@ -433,6 +437,7 @@
       diagNode.classList.add("hidden");
     } else {
       pushDiagLine("browser shell ready");
+      pushDiagLine("browser profile: " + activeProfileLabel + " -> " + configMountPoint);
     }
 
     document.getElementById("test-audio").addEventListener("click", function() {
@@ -455,15 +460,15 @@
           return;
         }
         try {
-          FS.mkdir("/config");
+          FS.mkdir(configMountPoint);
         } catch (error) {
           if (!/File exists/.test(String(error))) {
             throw error;
           }
         }
-        FS.mount(IDBFS, {}, "/config");
+        FS.mount(IDBFS, {}, configMountPoint);
         addRunDependency("ee-idbfs-load");
-        window.EmptyEpsilonDiag("idbfs: syncing from browser storage");
+        window.EmptyEpsilonDiag("idbfs: syncing from browser storage at " + configMountPoint);
         FS.syncfs(true, function(err) {
           if (err) {
             window.EmptyEpsilonDiag("idbfs: initial sync failed");
@@ -486,6 +491,7 @@
         runtimeReady = true;
         setStatus("Runtime initialized", false);
         window.EmptyEpsilonDiag("runtime initialized");
+        window.EmptyEpsilonDiag("browser profile: " + activeProfileLabel + " -> " + configMountPoint);
         updateAudioState();
         if (moduleArgs.length) {
           window.EmptyEpsilonDiag("argv: " + moduleArgs.join(" "));
