@@ -101,3 +101,34 @@ Suggested first implementation slice:
 4. Keep the browser path working as-is while moving platform assumptions behind
    the host layer over time.
 5. Defer mobile-shell details until the desktop-shell shape is proven.
+
+## Voice Chat Revamp
+
+Revisit the voice chat transport so it scales cleanly alongside game-state
+replication.
+
+Current concern:
+
+- voice and game-state updates currently share the same ordered client transport
+  and per-socket send queue
+- server-wide voice chat fans one speaker's packets out to every listener
+- under heavier voice load, voice traffic can head-of-line block state updates
+  and increase gameplay latency
+
+Preferred direction:
+
+1. Stop treating voice as just another packet on the main ordered gameplay
+   stream.
+2. Separate voice transport from latency-sensitive state replication.
+3. Keep browser support in mind from the start instead of designing only for
+   native sockets.
+
+Suggested first implementation slice:
+
+1. Document the current voice/state transport path and quantify where queueing
+   happens.
+2. Introduce a separate logical or physical channel for voice traffic.
+3. Preserve the current push-to-talk and ship/server routing behavior while
+   moving voice off the main state path.
+4. Evaluate whether browser voice should stay on a separate websocket or move
+   to a more voice-appropriate transport later.
