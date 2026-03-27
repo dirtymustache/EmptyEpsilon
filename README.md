@@ -129,6 +129,31 @@ python scripts/serve_wasm.py --host 127.0.0.1 --port 18086 --directory build-was
 http://127.0.0.1:18086/EmptyEpsilon.html?bridge=ws://127.0.0.1:35667&station=relay&username=web_user
 ```
 
+#### One-command local stack helpers on Windows
+
+After building both the native and wasm targets, you can use the PowerShell helpers in `scripts/` to cycle the whole local stack:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_full_stack.ps1
+```
+
+That starts:
+
+- the native headless server on `35666`
+- the websocket bridge on `35667`
+- the wasm HTTP server on `18086`
+- a native autoconnect client
+- the browser client URL
+- the browser admin page at `http://127.0.0.1:18086/admin.html`
+
+To stop the same stack:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\stop_full_stack.ps1
+```
+
+The start helper writes logs under `logs/fullstack-<timestamp>/` and stores the latest process info in `logs/fullstack-state.json`.
+
 #### HTTPS / WSS for LAN testing on Windows
 
 If you only test the browser build on the same Windows machine, `localhost` is usually enough and you do not need custom certificates. If you want to load the web client from another device on your LAN, especially an iPad or iPhone, and use browser features such as microphone access, serve the page over `https://` and the bridge over `wss://`.
