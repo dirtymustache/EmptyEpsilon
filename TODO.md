@@ -40,3 +40,48 @@ Open questions:
   - HTTP endpoint
   - session manifest file
 - whether this should later evolve into a more general lazy-loading asset system
+
+## Shared Wasm Core / Host Shell Architecture
+
+Explore making the WebAssembly build the primary EmptyEpsilon app core, with
+multiple host environments providing platform capabilities around that core.
+
+Preferred direction:
+
+1. Treat the game/runtime logic as a shared wasm core instead of treating the
+   browser build as a one-off port.
+2. Support separate host implementations over that core:
+   - `browser` host for browser-safe capabilities
+   - `native shell` host for OS-backed capabilities
+3. Keep gameplay logic inside the wasm core and move platform-specific behavior
+   behind explicit host capability boundaries.
+4. Prioritize a desktop shell host as the first non-browser target.
+5. Keep mobile shell hosts as follow-on work, with iOS constrained to bundled,
+   self-contained wasm content.
+
+Host capability model to define first:
+
+- networking
+- filesystem and persistence
+- windowing and input
+- audio input and output
+- process/admin integration
+
+Important direction:
+
+- browsers should continue using browser-safe networking such as websocket-based
+  transport boundaries
+- shell hosts should be allowed to provide richer capabilities such as raw
+  sockets, fuller filesystem access, and native process/window integration
+- temporary bridge-specific seams should eventually be replaced by host-provided
+  capability adapters
+- small host-specific bootstrap glue is acceptable even if the core runtime is shared
+
+Suggested first implementation slice:
+
+1. Document the host capability interfaces before changing core runtime code.
+2. Formalize networking as the first host boundary.
+3. Implement one desktop native shell host path first.
+4. Keep the browser path working as-is while moving platform assumptions behind
+   the host layer over time.
+5. Defer mobile-shell details until the desktop-shell shape is proven.
