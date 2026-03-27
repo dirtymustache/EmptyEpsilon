@@ -445,7 +445,7 @@
 
     function bindPushToTalkButton(button, targetIdentifier, label) {
       let active = false;
-      const activate = function(event) {
+      const activate = async function(event) {
         event.preventDefault();
         if (active) {
           return;
@@ -454,6 +454,22 @@
           setStatus("Microphone blocked in browser/site settings", true);
           showToast("Microphone is blocked for this site. Re-enable it in browser settings.");
           return;
+        }
+        if (microphoneState !== "granted") {
+          const granted = await requestBrowserMicrophone();
+          if (!granted) {
+            if (microphoneState === "denied") {
+              setStatus("Microphone blocked in browser/site settings", true);
+              showToast("Microphone is blocked for this site. Re-enable it in browser settings.");
+            } else if (microphoneState === "unavailable") {
+              setStatus("Microphone capture unavailable in this browser", true);
+              showToast("This browser does not have microphone capture available.");
+            } else {
+              setStatus("Microphone access needed for push-to-talk", true);
+              showToast("Enable the microphone for this site, then try push-to-talk again.");
+            }
+            return;
+          }
         }
         if (microphoneState !== "granted") {
           setStatus("Microphone access needed for push-to-talk", true);
@@ -617,6 +633,46 @@
       updatePushToTalkButtons();
     }
 
+    let initialMicrophoneRequestAttempted = false;
+    function requestBrowserMicrophone() {
+      if (microphoneState === "granted") {
+        return Promise.resolve(true);
+      }
+      const mediaDevices = navigator.mediaDevices;
+      if (!mediaDevices || typeof mediaDevices.getUserMedia !== "function") {
+        setMicrophoneState("unavailable");
+        return Promise.resolve(false);
+      }
+      return mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+        setMicrophoneState("granted");
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
+        return true;
+      }).catch(function(error) {
+        if (error && error.name === "NotFoundError") {
+          setMicrophoneState("unavailable");
+        } else if (error && (error.name === "NotAllowedError" || error.name === "SecurityError")) {
+          setMicrophoneState("denied");
+        } else {
+          setMicrophoneState("unknown");
+        }
+        return false;
+      });
+    }
+
+    function ensureInitialMicrophoneRequest() {
+      if (initialMicrophoneRequestAttempted || microphoneState === "granted" || microphoneState === "denied" || microphoneState === "unavailable") {
+        return;
+      }
+      initialMicrophoneRequestAttempted = true;
+      requestBrowserMicrophone().then(function(granted) {
+        if (granted) {
+          setStatus("Microphone access granted", false);
+        }
+      });
+    }
+
     function watchMicrophonePermission() {
       if (!navigator.permissions || typeof navigator.permissions.query !== "function") {
         updatePushToTalkButtons();
@@ -662,6 +718,7 @@
     }
     updatePushToTalkButtons();
     watchMicrophonePermission();
+    ensureInitialMicrophoneRequest();
 
     document.getElementById("test-audio").addEventListener("click", function() {
       tryResumeBrowserAudio();
@@ -738,12 +795,14 @@
       window.addEventListener(eventName, function() {
         tryResumeBrowserAudio();
         ensureEngineAudioStarted();
+        ensureInitialMicrophoneRequest();
         if (!shellControlHasFocus()) {
           focusGameCanvas();
         }
       }, { passive: true });
     }
     window.addEventListener("pageshow", function() {
+      ensureInitialMicrophoneRequest();
       if (runtimeReady && !shellControlHasFocus()) {
         focusGameCanvas();
       }
