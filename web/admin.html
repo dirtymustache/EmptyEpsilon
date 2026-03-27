@@ -256,7 +256,11 @@
     const playerList = document.getElementById("player-list");
     let scenarioCatalogue = [];
 
-    endpointInput.value = "http://" + defaultHost + ":8080/exec.lua";
+    if (window.location.protocol === "https:") {
+      endpointInput.value = window.location.origin + "/admin-api/exec.lua";
+    } else {
+      endpointInput.value = "http://" + defaultHost + ":8080/exec.lua";
+    }
 
     function getScenariosEndpoint() {
       const execEndpoint = endpointInput.value.trim();

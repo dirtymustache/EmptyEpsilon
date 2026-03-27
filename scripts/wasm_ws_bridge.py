@@ -17,6 +17,7 @@ import asyncio
 import base64
 import hashlib
 import logging
+import ssl
 import struct
 from typing import Optional
 
@@ -290,14 +291,23 @@ async def handle_client(
 
 
 async def main_async(args: argparse.Namespace) -> None:
+    ssl_context = None
+    scheme = "ws"
+    if args.tls_cert or args.tls_key:
+        if not args.tls_cert or not args.tls_key:
+            raise SystemExit("--tls-cert and --tls-key must be provided together")
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ssl_context.load_cert_chain(certfile=args.tls_cert, keyfile=args.tls_key)
+        scheme = "wss"
     server = await asyncio.start_server(
         lambda reader, writer: handle_client(reader, writer, args.target_host, args.target_port),
         args.listen_host,
         args.listen_port,
+        ssl=ssl_context,
     )
 
     for sock in server.sockets or []:
-        logging.info("bridge: listening on ws://%s:%d", sock.getsockname()[0], sock.getsockname()[1])
+        logging.info("bridge: listening on %s://%s:%d", scheme, sock.getsockname()[0], sock.getsockname()[1])
     logging.info("bridge: forwarding to tcp://%s:%d", args.target_host, args.target_port)
 
     async with server:
@@ -310,6 +320,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--listen-port", type=int, default=35667, help="WebSocket listen port")
     parser.add_argument("--target-host", default="127.0.0.1", help="Native EmptyEpsilon server host")
     parser.add_argument("--target-port", type=int, default=35666, help="Native EmptyEpsilon server TCP port")
+    parser.add_argument("--tls-cert", help="PEM certificate file to enable WSS")
+    parser.add_argument("--tls-key", help="PEM private key file to enable WSS")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
     return parser.parse_args()
 

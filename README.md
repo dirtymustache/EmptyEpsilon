@@ -121,6 +121,46 @@ python scripts/serve_wasm.py --host 127.0.0.1 --port 18086 --directory build-was
 http://127.0.0.1:18086/EmptyEpsilon.html?bridge=ws://127.0.0.1:35667&station=relay&username=web_user
 ```
 
+#### HTTPS / WSS for LAN testing on Windows
+
+If you only test the browser build on the same Windows machine, `localhost` is usually enough and you do not need custom certificates. If you want to load the web client from another device on your LAN, especially an iPad or iPhone, and use browser features such as microphone access, serve the page over `https://` and the bridge over `wss://`.
+
+The helper scripts in this repository expect PEM files:
+
+-   a trusted local CA certificate
+-   a server certificate in `.pem` format
+-   a matching private key in `.pem` format
+
+The simplest Windows-native path is [`mkcert`](https://github.com/FiloSottile/mkcert):
+
+```powershell
+mkcert -install
+New-Item -ItemType Directory -Force local-dev-tls | Out-Null
+mkcert -cert-file local-dev-tls/192.168.4.22.cert.pem -key-file local-dev-tls/192.168.4.22.key.pem 192.168.4.22
+```
+
+Then export or copy the mkcert local CA certificate to a file such as `local-dev-tls/local-dev-ca.cer` and import that CA into:
+
+-   Windows `Trusted Root Certification Authorities`
+-   any iPad or iPhone that should trust the local development host
+
+If you prefer to reuse the repository helper, [scripts/generate_local_tls.sh](scripts/generate_local_tls.sh) can generate the same PEM-style assets from Git Bash or WSL, as long as `openssl` is available.
+
+Start the secure browser stack by passing the generated cert and key to both Python helpers:
+
+```powershell
+python scripts/wasm_ws_bridge.py --listen-host 0.0.0.0 --listen-port 35667 --target-host 127.0.0.1 --target-port 35666 --tls-cert local-dev-tls/192.168.4.22.cert.pem --tls-key local-dev-tls/192.168.4.22.key.pem --verbose
+python scripts/serve_wasm.py --host 0.0.0.0 --port 18086 --directory build-wasm --tls-cert local-dev-tls/192.168.4.22.cert.pem --tls-key local-dev-tls/192.168.4.22.key.pem --proxy-admin-base http://127.0.0.1:8080
+```
+
+Then open the client from another device with the matching LAN host or IP:
+
+```text
+https://192.168.4.22:18086/EmptyEpsilon.html?bridge=wss://192.168.4.22:35667&station=relay&username=web_user
+```
+
+If the Windows machine's LAN IP changes, regenerate the server certificate for the new host or IP. Keep the private key and any local CA material out of source control; the repository's `.gitignore` already excludes `local-dev-tls/`.
+
 #### Useful browser pages
 
 -   Main browser launcher:

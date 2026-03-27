@@ -135,16 +135,31 @@
 
     #overlay {
       display: none;
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: min(420px, calc(100vw - 32px));
+      max-height: calc(100% - 32px);
+      overflow: auto;
+      box-sizing: border-box;
+      padding: 16px;
+      background: rgba(11, 16, 24, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(10px);
+      z-index: 15;
+      pointer-events: none;
     }
 
     #overlay strong {
       color: var(--accent);
+      pointer-events: auto;
     }
 
     #controls {
       display: grid;
       gap: 10px;
       margin-top: 12px;
+      pointer-events: auto;
     }
 
     #controls label {
@@ -206,6 +221,7 @@
     #hint {
       color: var(--muted);
       font-size: 12px;
+      pointer-events: auto;
     }
 
     #diag {
@@ -215,6 +231,7 @@
       color: var(--muted);
       font: 12px/1.35 Consolas, "SFMono-Regular", Menlo, monospace;
       white-space: pre-wrap;
+      pointer-events: auto;
     }
 
     #diag.hidden {
@@ -245,7 +262,7 @@
       <div id="controls">
         <label>
           Bridge URL
-          <input id="bridge-url" type="text" value="ws://127.0.0.1:35667" spellcheck="false">
+          <input id="bridge-url" type="text" value="" spellcheck="false">
         </label>
         <label>
           Player Name
@@ -273,7 +290,7 @@
         <div id="actions">
           <button id="test-audio" type="button">Test Audio</button>
         </div>
-        <div id="hint">URL params still work: <code>?bridge=ws://127.0.0.1:35667</code>, <code>?station=relay</code>, <code>?mode=menu</code>, <code>?username=web_user</code>.</div>
+        <div id="hint">URL params still work: <code>?bridge=ws://&lt;this-host&gt;:35667</code>, <code>?station=relay</code>, <code>?mode=menu</code>, <code>?username=web_user</code>.</div>
         <div id="audio-state" style="margin-top: 6px; color: var(--muted); font-size: 12px;">Audio: waiting for runtime</div>
       </div>
       <div id="diag">browser shell ready</div>
@@ -293,6 +310,7 @@
     const toastNode = document.getElementById("toast");
     let runtimeReady = false;
     let microphoneState = "unknown";
+    let microphoneUnavailableReason = "";
     let toastHideTimer = 0;
     const params = new URLSearchParams(window.location.search);
     const moduleArgs = [];
@@ -416,8 +434,11 @@
 
     function updatePushToTalkButtons() {
       const disabled = microphoneState === "unavailable";
+      const unavailableTitle = microphoneUnavailableReason === "secure-context"
+        ? "Microphone access requires HTTPS or localhost in this browser"
+        : "Microphone capture is not available in this browser";
       const title = disabled
-        ? "Microphone capture is not available in this browser"
+        ? unavailableTitle
         : (microphoneState === "granted"
           ? "Hold to transmit voice"
           : (microphoneState === "denied"
@@ -462,8 +483,13 @@
               setStatus("Microphone blocked in browser/site settings", true);
               showToast("Microphone is blocked for this site. Re-enable it in browser settings.");
             } else if (microphoneState === "unavailable") {
-              setStatus("Microphone capture unavailable in this browser", true);
-              showToast("This browser does not have microphone capture available.");
+              if (microphoneUnavailableReason === "secure-context") {
+                setStatus("Microphone access requires HTTPS or localhost", true);
+                showToast("Microphone access requires HTTPS or localhost on iPad Safari.");
+              } else {
+                setStatus("Microphone capture unavailable in this browser", true);
+                showToast("This browser does not have microphone capture available.");
+              }
             } else {
               setStatus("Microphone access needed for push-to-talk", true);
               showToast("Enable the microphone for this site, then try push-to-talk again.");
@@ -526,6 +552,14 @@
       return active instanceof HTMLInputElement ||
         active instanceof HTMLSelectElement ||
         active instanceof HTMLTextAreaElement;
+    }
+
+    function isShellControlTarget(target) {
+      return target instanceof HTMLInputElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLButtonElement ||
+        (target instanceof HTMLElement && !!target.closest("label"));
     }
 
     for (const control of [bridgeInput, playerNameInput, stationSelect]) {
@@ -630,13 +664,20 @@
 
     function setMicrophoneState(nextState) {
       microphoneState = nextState;
+      if (nextState !== "unavailable") {
+        microphoneUnavailableReason = "";
+      }
       updatePushToTalkButtons();
     }
 
-    let initialMicrophoneRequestAttempted = false;
     function requestBrowserMicrophone() {
       if (microphoneState === "granted") {
         return Promise.resolve(true);
+      }
+      if (!window.isSecureContext) {
+        microphoneUnavailableReason = "secure-context";
+        setMicrophoneState("unavailable");
+        return Promise.resolve(false);
       }
       const mediaDevices = navigator.mediaDevices;
       if (!mediaDevices || typeof mediaDevices.getUserMedia !== "function") {
@@ -658,18 +699,6 @@
           setMicrophoneState("unknown");
         }
         return false;
-      });
-    }
-
-    function ensureInitialMicrophoneRequest() {
-      if (initialMicrophoneRequestAttempted || microphoneState === "granted" || microphoneState === "denied" || microphoneState === "unavailable") {
-        return;
-      }
-      initialMicrophoneRequestAttempted = true;
-      requestBrowserMicrophone().then(function(granted) {
-        if (granted) {
-          setStatus("Microphone access granted", false);
-        }
       });
     }
 
@@ -718,7 +747,11 @@
     }
     updatePushToTalkButtons();
     watchMicrophonePermission();
-    ensureInitialMicrophoneRequest();
+    if (!window.isSecureContext) {
+      microphoneUnavailableReason = "secure-context";
+      setMicrophoneState("unavailable");
+      window.EmptyEpsilonDiag("mic: unavailable because page is not a secure context");
+    }
 
     document.getElementById("test-audio").addEventListener("click", function() {
       tryResumeBrowserAudio();
@@ -792,17 +825,15 @@
       setStatus("Startup error: " + event.message, true);
     });
     for (const eventName of ["pointerdown", "touchstart", "mousedown", "keydown"]) {
-      window.addEventListener(eventName, function() {
+      window.addEventListener(eventName, function(event) {
         tryResumeBrowserAudio();
         ensureEngineAudioStarted();
-        ensureInitialMicrophoneRequest();
-        if (!shellControlHasFocus()) {
+        if (!shellControlHasFocus() && !isShellControlTarget(event.target)) {
           focusGameCanvas();
         }
       }, { passive: true });
     }
     window.addEventListener("pageshow", function() {
-      ensureInitialMicrophoneRequest();
       if (runtimeReady && !shellControlHasFocus()) {
         focusGameCanvas();
       }
