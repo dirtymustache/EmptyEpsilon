@@ -77,6 +77,22 @@ Important direction:
   capability adapters
 - small host-specific bootstrap glue is acceptable even if the core runtime is shared
 
+Current host/runtime landscape notes:
+
+- there are hosted/runtime environments that expose capabilities to wasm apps,
+  but there is not one universal shell API that can replace all platform glue
+- Cloudflare Workers, Fermyon Spin, and wasmCloud are relevant examples of
+  capability-hosted wasm environments
+- Wasmtime + WASI is a strong candidate runtime for building a custom native
+  shell host
+- these environments are best treated as host-specific adapters, not as a
+  single portable target for the whole game
+- the practical architecture should still assume:
+  - one shared wasm core
+  - one browser host
+  - one custom desktop shell host
+  - optional future adapters for other wasm hosts if they become useful
+
 Suggested first implementation slice:
 
 1. Document the host capability interfaces before changing core runtime code.
