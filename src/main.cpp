@@ -169,6 +169,11 @@ int main(int argc, char** argv)
     textureManager.setDefaultRepeated(true);
     i18n::load("locale/main." + PreferencesManager::get("language", "en") + ".po");
     keys.init();
+#ifdef __EMSCRIPTEN__
+    keys.voice_all.addKey("virtual:250");
+    keys.voice_ship.addKey("virtual:251");
+    keys.escape.addKey("virtual:252");
+#endif
     if (PreferencesManager::get("httpserver").toInt() != 0)
     {
         int port_nr = PreferencesManager::get("httpserver").toInt();
@@ -230,9 +235,15 @@ int main(int argc, char** argv)
     // On Android, this requires the 'record audio' permissions,
     // which is always a scary thing for users.
     // Since there is no way to access it (yet) via a touchscreen, compile out.
-#if !defined(ANDROID) && !defined(__EMSCRIPTEN__)
+#if !defined(ANDROID)
     // Set up voice chat and key bindings.
-    if (PreferencesManager::get("voice_chat_enabled", "0") == "1")
+    const auto voice_chat_default =
+#ifdef __EMSCRIPTEN__
+        "1";
+#else
+        "0";
+#endif
+    if (PreferencesManager::get("voice_chat_enabled", voice_chat_default) == "1")
     {
         NetworkAudioRecorder* nar = new NetworkAudioRecorder();
         nar->addKeyActivation(&keys.voice_all, 0);

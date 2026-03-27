@@ -49,7 +49,71 @@
       text-transform: uppercase;
     }
 
+    #hud-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    #hud-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    #hud-actions button {
+      padding: 8px 12px;
+      border: 1px solid rgba(111, 211, 255, 0.25);
+      background: rgba(11, 16, 24, 0.92);
+      color: var(--ink);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    #hud-actions button:hover {
+      border-color: rgba(111, 211, 255, 0.55);
+      color: var(--accent);
+    }
+
+    #hud-actions button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+      border-color: rgba(255, 255, 255, 0.14);
+      color: var(--muted);
+    }
+
+    #hud-actions button.active {
+      border-color: rgba(111, 211, 255, 0.75);
+      background: rgba(31, 73, 94, 0.92);
+      color: var(--accent);
+    }
+
+    #toast {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      padding: 10px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(11, 16, 24, 0.96);
+      color: var(--ink);
+      font-size: 13px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 140ms ease;
+      z-index: 20;
+      max-width: min(80vw, 520px);
+      text-align: center;
+    }
+
+    #toast.visible {
+      opacity: 1;
+    }
+
     #status {
+      flex: 1 1 auto;
       color: var(--muted);
       white-space: nowrap;
       overflow: hidden;
@@ -164,11 +228,18 @@
 </head>
 <body>
   <div id="hud">
-    <div id="title">EmptyEpsilon WebAssembly Build</div>
+    <div id="hud-left">
+      <div id="title">EmptyEpsilon WebAssembly Build</div>
+      <div id="hud-actions">
+        <button id="ptt-server" type="button">Talk To Server</button>
+        <button id="ptt-ship" type="button">Talk To Ship</button>
+      </div>
+    </div>
     <div id="status">Initializing...</div>
   </div>
   <div id="canvas-wrap">
     <canvas id="canvas" tabindex="0"></canvas>
+    <div id="toast" aria-live="polite"></div>
     <div id="overlay">
       <strong>Browser milestone:</strong> local spectator and bridge-connected multiplayer client slices are both available.
       <div id="controls">
@@ -217,7 +288,12 @@
     const playerNameInput = document.getElementById("player-name");
     const stationSelect = document.getElementById("station-select");
     const audioStateNode = document.getElementById("audio-state");
+    const pttServerButton = document.getElementById("ptt-server");
+    const pttShipButton = document.getElementById("ptt-ship");
+    const toastNode = document.getElementById("toast");
     let runtimeReady = false;
+    let microphoneState = "unknown";
+    let toastHideTimer = 0;
     const params = new URLSearchParams(window.location.search);
     const moduleArgs = [];
     const diagEnabled = params.get("diag") === "1";
@@ -318,6 +394,109 @@
       overlayNode.className = isError ? "error" : "";
     }
 
+    function focusGameCanvas() {
+      if (document.activeElement !== canvas) {
+        canvas.focus({ preventScroll: true });
+      }
+    }
+
+    function forwardEscapeKey(isDown) {
+      if (!runtimeReady || !window.Module || typeof Module._ee_browser_set_escape_key !== "function") {
+        return;
+      }
+      Module._ee_browser_set_escape_key(isDown ? 1 : 0);
+    }
+
+    function setVoiceKey(targetIdentifier, isDown) {
+      if (!runtimeReady || !window.Module || typeof Module._ee_browser_set_voice_key !== "function") {
+        return;
+      }
+      Module._ee_browser_set_voice_key(targetIdentifier, isDown ? 1 : 0);
+    }
+
+    function updatePushToTalkButtons() {
+      const disabled = microphoneState === "unavailable";
+      const title = disabled
+        ? "Microphone capture is not available in this browser"
+        : (microphoneState === "granted"
+          ? "Hold to transmit voice"
+          : (microphoneState === "denied"
+            ? "Microphone access is blocked in browser/site settings"
+            : "Enable the microphone for this site, then hold to talk"));
+      for (const button of [pttServerButton, pttShipButton]) {
+        button.disabled = disabled;
+        button.title = title;
+      }
+    }
+
+    function showToast(message) {
+      if (!toastNode) {
+        return;
+      }
+      toastNode.textContent = message;
+      toastNode.classList.add("visible");
+      if (toastHideTimer) {
+        window.clearTimeout(toastHideTimer);
+      }
+      toastHideTimer = window.setTimeout(function() {
+        toastNode.classList.remove("visible");
+      }, 2200);
+    }
+
+    function bindPushToTalkButton(button, targetIdentifier, label) {
+      let active = false;
+      const activate = function(event) {
+        event.preventDefault();
+        if (active) {
+          return;
+        }
+        if (microphoneState === "denied") {
+          setStatus("Microphone blocked in browser/site settings", true);
+          showToast("Microphone is blocked for this site. Re-enable it in browser settings.");
+          return;
+        }
+        if (microphoneState !== "granted") {
+          setStatus("Microphone access needed for push-to-talk", true);
+          showToast("Enable the microphone for this site, then try push-to-talk again.");
+          return;
+        }
+        tryResumeBrowserAudio();
+        ensureEngineAudioStarted();
+        active = true;
+        setVoiceKey(targetIdentifier, true);
+        button.classList.add("active");
+        setStatus("Push-to-talk: " + label, false);
+      };
+      const deactivate = function(event) {
+        if (event) {
+          event.preventDefault();
+        }
+        if (!active) {
+          return;
+        }
+        active = false;
+        setVoiceKey(targetIdentifier, false);
+        button.classList.remove("active");
+        if (runtimeReady) {
+          setStatus("Runtime initialized", false);
+        }
+      };
+      if (window.PointerEvent) {
+        button.addEventListener("pointerdown", activate);
+        button.addEventListener("pointerup", deactivate);
+        button.addEventListener("pointercancel", deactivate);
+        button.addEventListener("lostpointercapture", deactivate);
+        button.addEventListener("pointerleave", deactivate);
+      } else {
+        button.addEventListener("touchstart", activate, { passive: false });
+        button.addEventListener("touchend", deactivate, { passive: false });
+        button.addEventListener("touchcancel", deactivate, { passive: false });
+        button.addEventListener("mousedown", activate);
+        button.addEventListener("mouseup", deactivate);
+        button.addEventListener("mouseleave", deactivate);
+      }
+    }
+
     function updateAudioState() {
       if (!window.Module || !Module.SDL2 || !Module.SDL2.audioContext) {
         audioStateNode.textContent = "Audio: no browser audio context yet";
@@ -356,6 +535,22 @@
         }
       }, true);
     }
+
+    document.addEventListener("keydown", function(event) {
+      if (event.key !== "Escape" || shellControlHasFocus()) {
+        return;
+      }
+      forwardEscapeKey(true);
+      event.preventDefault();
+    }, true);
+
+    document.addEventListener("keyup", function(event) {
+      if (event.key !== "Escape" || shellControlHasFocus()) {
+        return;
+      }
+      forwardEscapeKey(false);
+      event.preventDefault();
+    }, true);
 
     function renderDiag() {
       if (!diagEnabled) {
@@ -417,6 +612,33 @@
       }
     }
 
+    function setMicrophoneState(nextState) {
+      microphoneState = nextState;
+      updatePushToTalkButtons();
+    }
+
+    function watchMicrophonePermission() {
+      if (!navigator.permissions || typeof navigator.permissions.query !== "function") {
+        updatePushToTalkButtons();
+        return;
+      }
+      navigator.permissions.query({ name: "microphone" }).then(function(permissionStatus) {
+        const syncState = function() {
+          if (permissionStatus.state === "granted") {
+            setMicrophoneState("granted");
+          } else if (permissionStatus.state === "denied") {
+            setMicrophoneState("denied");
+          } else {
+            setMicrophoneState("unknown");
+          }
+        };
+        syncState();
+        permissionStatus.onchange = syncState;
+      }).catch(function() {
+        updatePushToTalkButtons();
+      });
+    }
+
     window.EmptyEpsilonDiag = function(message) {
       const line = String(message || "");
       if (!diagEnabled) {
@@ -426,7 +648,6 @@
         return;
       }
       if (line.startsWith("ws:")) {
-        console.debug("[EE wasm] " + line);
         return;
       }
       pushDiagLine(line);
@@ -439,6 +660,8 @@
       pushDiagLine("browser shell ready");
       pushDiagLine("browser profile: " + activeProfileLabel + " -> " + configMountPoint);
     }
+    updatePushToTalkButtons();
+    watchMicrophonePermission();
 
     document.getElementById("test-audio").addEventListener("click", function() {
       tryResumeBrowserAudio();
@@ -493,6 +716,7 @@
         window.EmptyEpsilonDiag("runtime initialized");
         window.EmptyEpsilonDiag("browser profile: " + activeProfileLabel + " -> " + configMountPoint);
         updateAudioState();
+        focusGameCanvas();
         if (moduleArgs.length) {
           window.EmptyEpsilonDiag("argv: " + moduleArgs.join(" "));
         }
@@ -514,8 +738,18 @@
       window.addEventListener(eventName, function() {
         tryResumeBrowserAudio();
         ensureEngineAudioStarted();
+        if (!shellControlHasFocus()) {
+          focusGameCanvas();
+        }
       }, { passive: true });
     }
+    window.addEventListener("pageshow", function() {
+      if (runtimeReady && !shellControlHasFocus()) {
+        focusGameCanvas();
+      }
+    });
+    bindPushToTalkButton(pttServerButton, 0, "server");
+    bindPushToTalkButton(pttShipButton, 1, "ship");
     window.addEventListener("pagehide", flushPersistentState);
     document.addEventListener("visibilitychange", function() {
       if (document.visibilityState === "hidden") {

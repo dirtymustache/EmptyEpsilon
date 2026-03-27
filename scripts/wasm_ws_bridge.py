@@ -17,12 +17,15 @@ import asyncio
 import base64
 import hashlib
 import logging
-import os
 import struct
 from typing import Optional
 
 
 GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+CMD_AUDIO_COMM_START = 0x0020
+CMD_AUDIO_COMM_DATA = 0x0021
+CMD_AUDIO_COMM_STOP = 0x0022
 
 
 def describe_payload(payload: bytes) -> str:
@@ -43,6 +46,37 @@ def try_parse_packet_length(buffer: bytearray) -> Optional[tuple[int, int]]:
         if not (raw_byte & 0x80):
             return prefix_length, value
     return None
+
+
+def describe_command(command: int) -> str:
+    if command == CMD_AUDIO_COMM_START:
+        return "CMD_AUDIO_COMM_START"
+    if command == CMD_AUDIO_COMM_DATA:
+        return "CMD_AUDIO_COMM_DATA"
+    if command == CMD_AUDIO_COMM_STOP:
+        return "CMD_AUDIO_COMM_STOP"
+    return f"cmd=0x{command:04x}"
+
+
+def inspect_packet(payload: bytes) -> Optional[str]:
+    parsed = try_parse_packet_length(bytearray(payload))
+    if parsed is None:
+        return None
+    prefix_length, packet_length = parsed
+    total_length = prefix_length + packet_length
+    if total_length > len(payload) or packet_length < 2:
+        return None
+    command = struct.unpack_from("<H", payload, prefix_length)[0]
+    if command not in {CMD_AUDIO_COMM_START, CMD_AUDIO_COMM_STOP}:
+        return None
+    detail = describe_command(command)
+    if packet_length >= 6:
+        client_id = struct.unpack_from("<i", payload, prefix_length + 2)[0]
+        detail += f" client_id={client_id}"
+    if command == CMD_AUDIO_COMM_START and packet_length >= 10:
+        target_identifier = struct.unpack_from("<i", payload, prefix_length + 6)[0]
+        detail += f" target={target_identifier}"
+    return detail
 
 
 class WebSocketProtocolError(RuntimeError):
@@ -175,6 +209,9 @@ async def pump_ws_to_tcp(ws_reader: asyncio.StreamReader, ws_writer: asyncio.Str
             raise WebSocketProtocolError(f"unsupported websocket opcode {opcode}")
 
         logging.info("bridge: ws -> tcp %s", describe_payload(payload))
+        packet_info = inspect_packet(payload)
+        if packet_info:
+            logging.info("bridge: ws voice %s", packet_info)
         tcp_writer.write(payload)
         await tcp_writer.drain()
 
@@ -197,6 +234,9 @@ async def pump_tcp_to_ws(tcp_reader: asyncio.StreamReader, ws_writer: asyncio.St
             payload = bytes(pending[:total_length])
             del pending[:total_length]
             logging.info("bridge: tcp -> ws %s", describe_payload(payload))
+            packet_info = inspect_packet(payload)
+            if packet_info:
+                logging.info("bridge: tcp voice %s", packet_info)
             await send_ws_frame(ws_writer, payload, opcode=0x2)
 
 

@@ -134,4 +134,20 @@ extern "C" EMSCRIPTEN_KEEPALIVE void ee_browser_play_test_sound()
         return;
     soundManager->playSound("sfx/button.wav");
 }
+
+extern "C" EMSCRIPTEN_KEEPALIVE void ee_browser_set_escape_key(int down)
+{
+    sp::io::Keybinding::setVirtualKey(252, down ? 1.0f : 0.0f);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE void ee_browser_set_voice_key(int target_identifier, int down)
+{
+    int virtual_key = -1;
+    if (target_identifier == 0)
+        virtual_key = 250;
+    else if (target_identifier == 1)
+        virtual_key = 251;
+    if (virtual_key >= 0)
+        sp::io::Keybinding::setVirtualKey(virtual_key, down ? 1.0f : 0.0f);
+}
 #endif

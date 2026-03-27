@@ -724,6 +724,9 @@ set_target_properties(${PROJECT_NAME}
 
 if(EMSCRIPTEN)
     set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html")
+    set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY LINK_DEPENDS
+        "${CMAKE_SOURCE_DIR}/web/wasm_shell.html"
+    )
 
     configure_file(${CMAKE_SOURCE_DIR}/web/admin.html ${CMAKE_BINARY_DIR}/admin.html COPYONLY)
 
