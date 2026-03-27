@@ -251,6 +251,14 @@ ServerScenarioSelectionScreen::ServerScenarioSelectionScreen()
     (new GuiButton(row, "CLOSE_SERVER", tr("Close"), [this]() {
         destroy();
         disconnectFromServer();
+#ifdef __EMSCRIPTEN__
+        if (PreferencesManager::get("browser_local_session", "") == "1")
+        {
+            PreferencesManager::set("browser_local_session", "");
+            returnToMainMenu(getRenderLayer());
+            return;
+        }
+#endif
         new ServerSetupScreen();
     }))->setPosition(-250.0f, 0.0f, sp::Alignment::BottomCenter)
        ->setSize(300.0f, GuiElement::GuiSizeMax);

@@ -517,12 +517,26 @@ ShipSelectionScreen::ShipSelectionScreen()
 
     if (game_server)
     {
-        // If this is the server, the "back" button goes to the scenario
-        // selection/server creation screen.
-        (new GuiButton(disconnect_row, "DISCONNECT", tr("Scenario selection"), [this]() {
-            destroy();
-            new ServerScenarioSelectionScreen();
-        }))->setSize(300, GuiElement::GuiSizeMax)->setAttribute("alignment", "bottomcenter");
+#ifdef __EMSCRIPTEN__
+        if (PreferencesManager::get("browser_local_session", "") == "1")
+        {
+            (new GuiButton(disconnect_row, "DISCONNECT", tr("End local session"), [this]() {
+                destroy();
+                disconnectFromServer();
+                PreferencesManager::set("browser_local_session", "");
+                returnToMainMenu(getRenderLayer());
+            }))->setSize(300, GuiElement::GuiSizeMax)->setAttribute("alignment", "bottomcenter");
+        }
+        else
+#endif
+        {
+            // If this is the server, the "back" button goes to the scenario
+            // selection/server creation screen.
+            (new GuiButton(disconnect_row, "DISCONNECT", tr("Scenario selection"), [this]() {
+                destroy();
+                new ServerScenarioSelectionScreen();
+            }))->setSize(300, GuiElement::GuiSizeMax)->setAttribute("alignment", "bottomcenter");
+        }
     }
     else
     {

@@ -38,9 +38,24 @@ MainMenu::MainMenu()
         PreferencesManager::set("username", text);
     })->setPosition({50, -350}, sp::Alignment::BottomLeft)->setSize(300, 50);
 
-    (new GuiButton(this, "START_SERVER", tr("mainMenu", "Start server"), [this]() {
+    string start_server_label = tr("mainMenu", "Start server");
+#ifdef __EMSCRIPTEN__
+    start_server_label = tr("mainMenu", "Start local session");
+#endif
+    (new GuiButton(this, "START_SERVER", start_server_label, [this]() {
+#ifdef __EMSCRIPTEN__
+        PreferencesManager::set("browser_local_session", "1");
+        new EpsilonServer(defaultServerPort, false);
+        if (game_server)
+        {
+            game_server->setServerName("Local Session");
+            new ServerScenarioSelectionScreen();
+            destroy();
+        }
+#else
         new ServerSetupScreen();
         destroy();
+#endif
     }))->setPosition({50, -230}, sp::Alignment::BottomLeft)->setSize(300, 50);
 
     string start_client_label = tr("mainMenu", "Start client");

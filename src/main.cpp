@@ -372,6 +372,9 @@ int main(int argc, char** argv)
 
 void returnToMainMenu(RenderLayer* render_layer)
 {
+#ifdef __EMSCRIPTEN__
+    PreferencesManager::set("browser_local_session", "");
+#endif
     if (render_layer != defaultRenderLayer) // Handle secondary monitors
     {
         returnToShipSelection(render_layer);
