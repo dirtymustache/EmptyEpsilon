@@ -248,6 +248,8 @@
     <div id="hud-left">
       <div id="title">EmptyEpsilon WebAssembly Build</div>
       <div id="hud-actions">
+        <button id="toggle-fullscreen" type="button">Enter Full Screen</button>
+        <button id="back-to-ship-selection" type="button">Back To Ship Selection</button>
         <button id="ptt-server" type="button">Talk To Server</button>
         <button id="ptt-ship" type="button">Talk To Ship</button>
       </div>
@@ -305,6 +307,8 @@
     const playerNameInput = document.getElementById("player-name");
     const stationSelect = document.getElementById("station-select");
     const audioStateNode = document.getElementById("audio-state");
+    const fullscreenButton = document.getElementById("toggle-fullscreen");
+    const backToShipSelectionButton = document.getElementById("back-to-ship-selection");
     const pttServerButton = document.getElementById("ptt-server");
     const pttShipButton = document.getElementById("ptt-ship");
     const toastNode = document.getElementById("toast");
@@ -451,13 +455,29 @@
 
     function toggleBrowserFullscreen() {
       const target = document.documentElement;
-      if (document.fullscreenElement) {
-        return document.exitFullscreen();
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+          return document.exitFullscreen();
+        }
+        if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+          return Promise.resolve(true);
+        }
+        return Promise.resolve(false);
       }
       if (target.requestFullscreen) {
         return target.requestFullscreen({ navigationUI: "hide" });
       }
-      return Promise.resolve();
+      if (target.webkitRequestFullscreen) {
+        target.webkitRequestFullscreen();
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(false);
+    }
+
+    function updateFullscreenButton() {
+      const active = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      fullscreenButton.textContent = active ? "Exit Full Screen" : "Enter Full Screen";
     }
 
     function forwardEscapeKey(isDown) {
@@ -465,6 +485,19 @@
         return;
       }
       Module._ee_browser_set_escape_key(isDown ? 1 : 0);
+    }
+
+    function triggerBackToShipSelection() {
+      if (!runtimeReady) {
+        setStatus("Runtime not ready yet", true);
+        return;
+      }
+      forwardEscapeKey(true);
+      window.setTimeout(function() {
+        forwardEscapeKey(false);
+      }, 60);
+      focusGameCanvas();
+      setStatus("Returning to ship selection", false);
     }
 
     function setVoiceKey(targetIdentifier, isDown) {
@@ -822,6 +855,29 @@
       }
     });
 
+    backToShipSelectionButton.addEventListener("click", function(event) {
+      event.preventDefault();
+      triggerBackToShipSelection();
+    });
+
+    fullscreenButton.addEventListener("click", function(event) {
+      event.preventDefault();
+      toggleBrowserFullscreen().then(function(result) {
+        updateFullscreenButton();
+        if (result === false) {
+          setStatus("Fullscreen is not available in this browser", true);
+          showToast("Fullscreen is not available here. On iPad Safari, Add to Home Screen may be the closest fallback.");
+        } else {
+          const active = !!(document.fullscreenElement || document.webkitFullscreenElement);
+          setStatus(active ? "Entered fullscreen" : "Exited fullscreen", false);
+        }
+      }).catch(function(error) {
+        updateFullscreenButton();
+        setStatus("Fullscreen failed", true);
+        showToast("Fullscreen failed: " + error);
+      });
+    });
+
     var Module = {
       arguments: moduleArgs,
       canvas,
@@ -860,6 +916,7 @@
       },
       onRuntimeInitialized: function() {
         runtimeReady = true;
+        backToShipSelectionButton.disabled = false;
         setStatus("Runtime initialized", false);
         window.EmptyEpsilonDiag("runtime initialized");
         window.EmptyEpsilonDiag("browser profile: " + activeProfileLabel + " -> " + configMountPoint);
@@ -898,18 +955,23 @@
     }
     window.addEventListener("pageshow", function() {
       syncCanvasSize();
+      updateFullscreenButton();
       if (runtimeReady && !shellControlHasFocus()) {
         focusGameCanvas();
       }
     });
     window.addEventListener("resize", syncCanvasSize);
     document.addEventListener("fullscreenchange", syncCanvasSize);
+    document.addEventListener("fullscreenchange", updateFullscreenButton);
+    document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
     if (window.ResizeObserver) {
       const resizeObserver = new ResizeObserver(function() {
         syncCanvasSize();
       });
       resizeObserver.observe(document.getElementById("canvas-wrap"));
     }
+    updateFullscreenButton();
+    backToShipSelectionButton.disabled = true;
     bindPushToTalkButton(pttServerButton, 0, "server");
     bindPushToTalkButton(pttShipButton, 1, "ship");
     window.addEventListener("pagehide", flushPersistentState);

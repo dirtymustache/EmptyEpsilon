@@ -18,6 +18,7 @@
 #include "menus/autoConnectScreen.h"
 #include "menus/joinServerMenu.h"
 #include "menus/shipSelectionScreen.h"
+#include "multiplayer_client.h"
 #include "screens/spectatorScreen.h"
 #include "main.h"
 #include "epsilonServer.h"
@@ -443,8 +444,12 @@ void returnToShipSelection(RenderLayer* render_layer)
     } else {
         if (PreferencesManager::get("autoconnect") != "")
         {
-            //If we are auto connect, return to the auto connect screen instead of the ship selection. The returnToMainMenu will handle this.
-            returnToMainMenu(render_layer);
+            // Preserve autoconnect for startup, but once the client is already
+            // connected let Escape return to the normal ship/role picker.
+            if (game_client && game_client->getStatus() == GameClient::Connected)
+                new ShipSelectionScreen();
+            else
+                returnToMainMenu(render_layer);
         }
         else
         {

@@ -17,11 +17,28 @@
 #include "screenComponents/viewportMainScreen.h"
 
 #include "gui/gui2_togglebutton.h"
+#include "gui/gui2_button.h"
 #include "gui/gui2_panel.h"
 #include "gui/gui2_scrolltext.h"
 #include "gui/joystickConfig.h"
 
 #include <i18n.h>
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
+namespace
+{
+bool shouldShowChangeRoleButton()
+{
+#ifdef __EMSCRIPTEN__
+    return false;
+#else
+    return !engine->getObject("mouseRenderer");
+#endif
+}
+}
 
 CrewStationScreen::CrewStationScreen(RenderLayer* render_layer, bool with_main_screen)
 : GuiCanvas(render_layer)
@@ -44,6 +61,15 @@ CrewStationScreen::CrewStationScreen(RenderLayer* render_layer, bool with_main_s
     });
     select_station_button->setPosition(-20, 20, sp::Alignment::TopRight)->setSize(250, 50);
 
+    change_role_button = new GuiButton(main_panel, "CHANGE_ROLE_BUTTON", tr("button", "Back to Ship Selection"), [this]() {
+        destroy();
+        soundManager->stopMusic();
+        impulse_sound->stop();
+        returnToShipSelection(getRenderLayer());
+    });
+    change_role_button->setPosition(-20, 80, sp::Alignment::TopRight)->setSize(250, 50);
+    change_role_button->setVisible(shouldShowChangeRoleButton());
+
 #ifdef __EMSCRIPTEN__
     if (game_server && PreferencesManager::get("browser_local_session", "") == "1")
     {
@@ -55,7 +81,7 @@ CrewStationScreen::CrewStationScreen(RenderLayer* render_layer, bool with_main_s
             PreferencesManager::set("browser_local_session", "");
             returnToMainMenu(getRenderLayer());
         });
-        end_local_session_button->setPosition(-20, 80, sp::Alignment::TopRight)->setSize(250, 50);
+        end_local_session_button->setPosition(-20, 140, sp::Alignment::TopRight)->setSize(250, 50);
     }
 #endif
 
@@ -279,6 +305,7 @@ void CrewStationScreen::addStationTab(GuiElement* element, CrewPosition position
 void CrewStationScreen::finishCreation()
 {
     select_station_button->moveToFront();
+    change_role_button->moveToFront();
     button_strip->moveToFront();
     button_strip->setSize(button_strip->getSize().x, 50 * tabs.size());
 
@@ -308,14 +335,10 @@ void CrewStationScreen::update(float delta)
 
     if (keys.escape.getDown())
     {
-        //If we're using autoconnect do nothing on escape, otherwise go back to the ship selection. 
-        if (PreferencesManager::get("autoconnect") == "")
-        {
-            destroy();
-            soundManager->stopMusic();
-            impulse_sound->stop();
-            returnToShipSelection(getRenderLayer());
-        }
+        destroy();
+        soundManager->stopMusic();
+        impulse_sound->stop();
+        returnToShipSelection(getRenderLayer());
     }
     if (keys.help.getDown())
     {

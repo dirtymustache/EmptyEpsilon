@@ -95,8 +95,9 @@ namespace
             "if (!touch) return '1';"
             "var shortest = Math.min(window.innerWidth || 0, window.innerHeight || 0);"
             "if (shortest > 0 && shortest <= 430) return '1.85';"
-            "if (shortest > 0 && shortest <= 820) return '1.35';"
-            "return '1.15';"
+            "if (shortest > 0 && shortest <= 600) return '1.35';"
+            "if (shortest > 0 && shortest <= 768) return '1.12';"
+            "return '1.0';"
             "})()"
         );
         return script_result ? string{script_result}.toFloat() : 1.0f;

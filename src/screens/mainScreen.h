@@ -11,6 +11,7 @@ class GuiViewportMainScreen;
 class GuiRadarView;
 class GuiCommsOverlay;
 class GuiHelpOverlay;
+class GuiButton;
 class ImpulseSound;
 
 class ScreenMainScreen : public GuiCanvas, public Updatable
@@ -23,6 +24,7 @@ private:
     GuiRadarView* tactical_radar;
     GuiRadarView* long_range_radar;
     GuiCommsOverlay* onscreen_comms;
+    GuiButton* change_role_button;
     std::unique_ptr<ImpulseSound> impulse_sound;
 public:
     ScreenMainScreen(RenderLayer* render_layer);

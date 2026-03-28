@@ -44,6 +44,30 @@
 #include "gui/gui2_image.h"
 #include "gui/gui2_label.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
+namespace
+{
+bool isIpadBrowser()
+{
+#ifdef __EMSCRIPTEN__
+    const char* script_result = emscripten_run_script_string(
+        "(function(){"
+        "var ua = navigator.userAgent || '';"
+        "var touchMac = /Macintosh/.test(ua) && ((navigator.maxTouchPoints || 0) > 1);"
+        "var ipad = /iPad/.test(ua) || touchMac;"
+        "return ipad ? '1' : '0';"
+        "})()"
+    );
+    return script_result && string{script_result} == "1";
+#else
+    return false;
+#endif
+}
+}
+
 SinglePilotScreen::SinglePilotScreen(GuiContainer* owner)
 : GuiOverlay(owner, "SINGLEPILOT_SCREEN", GuiTheme::getColor("background"))
 {
@@ -53,9 +77,13 @@ SinglePilotScreen::SinglePilotScreen(GuiContainer* owner)
 
     background_crosses = new GuiOverlay(this, "BACKGROUND_CROSSES", glm::u8vec4{255,255,255,255});
     background_crosses->setTextureTiledThemed("background.crosses");
+    if (isIpadBrowser())
+        background_crosses->hide();
 
-    // Render the alert level color overlay.
-    (new AlertLevelOverlay(this));
+    // Safari on iPad still shows intermittent quad artifacts on this large
+    // textured overlay, so fall back to the rest of the UI there.
+    if (!isIpadBrowser())
+        (new AlertLevelOverlay(this));
 
     // 5U tactical radar with piloting features.
     radar = new GuiRadarView(this, "TACTICAL_RADAR", &targets);

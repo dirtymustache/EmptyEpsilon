@@ -35,6 +35,7 @@ private:
     GuiElement* main_panel;
     GuiViewport3D* viewport{ nullptr };
     GuiButton* select_station_button;
+    GuiButton* change_role_button;
     GuiPanel* button_strip;
     GuiHelpOverlay* keyboard_help;
     GuiPanel* message_frame;
