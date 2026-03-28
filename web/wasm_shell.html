@@ -418,6 +418,48 @@
       }
     }
 
+    function measureCanvasTargetSize() {
+      const width = Math.max(1, Math.round(canvas.clientWidth || canvas.parentElement?.clientWidth || window.innerWidth || 1));
+      const height = Math.max(1, Math.round(canvas.clientHeight || canvas.parentElement?.clientHeight || (window.innerHeight - document.getElementById("hud").offsetHeight) || 1));
+      return { width, height };
+    }
+
+    function syncCanvasElementSizeImmediately() {
+      const size = measureCanvasTargetSize();
+      if (canvas.width !== size.width) {
+        canvas.width = size.width;
+      }
+      if (canvas.height !== size.height) {
+        canvas.height = size.height;
+      }
+    }
+
+    function syncCanvasSize() {
+      if (!window.Browser || typeof Browser.setCanvasSize !== "function") {
+        syncCanvasElementSizeImmediately();
+        return;
+      }
+      const size = measureCanvasTargetSize();
+      const width = size.width;
+      const height = size.height;
+      Browser.setCanvasSize(width, height);
+    }
+
+    function isAltEnterShortcut(event) {
+      return event.key === "Enter" && event.altKey;
+    }
+
+    function toggleBrowserFullscreen() {
+      const target = document.documentElement;
+      if (document.fullscreenElement) {
+        return document.exitFullscreen();
+      }
+      if (target.requestFullscreen) {
+        return target.requestFullscreen({ navigationUI: "hide" });
+      }
+      return Promise.resolve();
+    }
+
     function forwardEscapeKey(isDown) {
       if (!runtimeReady || !window.Module || typeof Module._ee_browser_set_escape_key !== "function") {
         return;
@@ -587,6 +629,16 @@
     }
 
     document.addEventListener("keydown", function(event) {
+      if (isAltEnterShortcut(event)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!event.repeat) {
+          toggleBrowserFullscreen().catch(function(error) {
+            window.EmptyEpsilonDiag("fullscreen: browser toggle failed: " + error);
+          });
+        }
+        return;
+      }
       if (event.key !== "Escape" || shellControlHasFocus()) {
         return;
       }
@@ -595,6 +647,11 @@
     }, true);
 
     document.addEventListener("keyup", function(event) {
+      if (isAltEnterShortcut(event)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
       if (event.key !== "Escape" || shellControlHasFocus()) {
         return;
       }
@@ -805,6 +862,9 @@
         setStatus("Runtime initialized", false);
         window.EmptyEpsilonDiag("runtime initialized");
         window.EmptyEpsilonDiag("browser profile: " + activeProfileLabel + " -> " + configMountPoint);
+        syncCanvasSize();
+        window.setTimeout(syncCanvasSize, 0);
+        window.setTimeout(syncCanvasSize, 100);
         updateAudioState();
         focusGameCanvas();
         if (moduleArgs.length) {
@@ -824,6 +884,8 @@
       window.EmptyEpsilonDiag("startup error: " + event.message);
       setStatus("Startup error: " + event.message, true);
     });
+    syncCanvasElementSizeImmediately();
+    window.addEventListener("load", syncCanvasElementSizeImmediately);
     for (const eventName of ["pointerdown", "touchstart", "mousedown", "keydown"]) {
       window.addEventListener(eventName, function(event) {
         tryResumeBrowserAudio();
@@ -834,10 +896,19 @@
       }, { passive: true });
     }
     window.addEventListener("pageshow", function() {
+      syncCanvasSize();
       if (runtimeReady && !shellControlHasFocus()) {
         focusGameCanvas();
       }
     });
+    window.addEventListener("resize", syncCanvasSize);
+    document.addEventListener("fullscreenchange", syncCanvasSize);
+    if (window.ResizeObserver) {
+      const resizeObserver = new ResizeObserver(function() {
+        syncCanvasSize();
+      });
+      resizeObserver.observe(document.getElementById("canvas-wrap"));
+    }
     bindPushToTalkButton(pttServerButton, 0, "server");
     bindPushToTalkButton(pttShipButton, 1, "ship");
     window.addEventListener("pagehide", flushPersistentState);

@@ -71,9 +71,10 @@ bool createDisplayWindows()
     }
 #endif
 
-    windows.push_back(new Window({width, height}, fullscreen, warpPostProcessor, fsaa));
-    window_render_layers.push_back(defaultRenderLayer);
 #ifdef __EMSCRIPTEN__
+    // Browser fullscreen should be handled by the shell page rather than SDL's
+    // desktop-style fullscreen modes, which can distort the in-page canvas.
+    fullscreen = Window::Mode::Window;
     const float touch_ui_scale = browserTouchUiScale();
     if (touch_ui_scale > 0.0f && touch_ui_scale < 0.999f)
     {
@@ -82,6 +83,8 @@ bool createDisplayWindows()
         browserDiag("display: touch ui scale active");
     }
 #endif
+    windows.push_back(new Window({width, height}, fullscreen, warpPostProcessor, fsaa));
+    window_render_layers.push_back(defaultRenderLayer);
 
 #ifdef __EMSCRIPTEN__
     browserDiag("display: primary window created");
