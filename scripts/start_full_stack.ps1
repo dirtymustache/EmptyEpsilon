@@ -4,6 +4,11 @@ param(
     [string]$WebUsername = "web_user",
     [string]$Station = "relay",
     [string]$NativeStation = "helms",
+    [string]$BindHost = "127.0.0.1",
+    [string]$PublicHost = "",
+    [switch]$UseTls,
+    [string]$TlsCertPath = "",
+    [string]$TlsKeyPath = "",
     [int]$ServerPort = 35666,
     [int]$BridgePort = 35667,
     [int]$WebPort = 18086,
@@ -60,28 +65,56 @@ function Start-NativeProcess {
     return Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $cmdLine -WorkingDirectory $repoRoot -RedirectStandardOutput $StdOutLog -RedirectStandardError $StdErrLog -PassThru
 }
 
+if (-not $PublicHost) {
+    $PublicHost = $BindHost
+}
+$webScheme = if ($UseTls) { "https" } else { "http" }
+$bridgeScheme = if ($UseTls) { "wss" } else { "ws" }
+$bridgeTlsArgs = @()
+$webTlsArgs = @()
+if ($UseTls) {
+    if (-not $TlsCertPath) {
+        $TlsCertPath = Join-Path $repoRoot ("local-dev-tls\" + $PublicHost + ".cert.pem")
+    }
+    if (-not $TlsKeyPath) {
+        $TlsKeyPath = Join-Path $repoRoot ("local-dev-tls\" + $PublicHost + ".key.pem")
+    }
+    if (-not (Test-Path $TlsCertPath)) {
+        throw "Missing TLS certificate: $TlsCertPath"
+    }
+    if (-not (Test-Path $TlsKeyPath)) {
+        throw "Missing TLS private key: $TlsKeyPath"
+    }
+    $bridgeTlsArgs = @("--tls-cert", $TlsCertPath, "--tls-key", $TlsKeyPath)
+    $webTlsArgs = @("--tls-cert", $TlsCertPath, "--tls-key", $TlsKeyPath)
+}
+
+$bridgeArgs = @(
+    "scripts/wasm_ws_bridge.py",
+    "--listen-host", $BindHost,
+    "--listen-port", "$BridgePort",
+    "--target-host", "127.0.0.1",
+    "--target-port", "$ServerPort",
+    "--verbose"
+) + $bridgeTlsArgs
+
 $bridge = Start-Process -FilePath "python" `
-    -ArgumentList @(
-        "scripts/wasm_ws_bridge.py",
-        "--listen-host", "127.0.0.1",
-        "--listen-port", "$BridgePort",
-        "--target-host", "127.0.0.1",
-        "--target-port", "$ServerPort",
-        "--verbose"
-    ) `
+    -ArgumentList $bridgeArgs `
     -WorkingDirectory $repoRoot `
     -RedirectStandardOutput (Join-Path $logDir "bridge.out.log") `
     -RedirectStandardError (Join-Path $logDir "bridge.err.log") `
     -PassThru
 
+$webArgs = @(
+    "scripts/serve_wasm.py",
+    "--host", $BindHost,
+    "--port", "$WebPort",
+    "--directory", "build-wasm",
+    "--proxy-admin-base", "http://127.0.0.1:$AdminPort"
+) + $webTlsArgs
+
 $web = Start-Process -FilePath "python" `
-    -ArgumentList @(
-        "scripts/serve_wasm.py",
-        "--host", "127.0.0.1",
-        "--port", "$WebPort",
-        "--directory", "build-wasm",
-        "--proxy-admin-base", "http://127.0.0.1:$AdminPort"
-    ) `
+    -ArgumentList $webArgs `
     -WorkingDirectory $repoRoot `
     -RedirectStandardOutput (Join-Path $logDir "serve.out.log") `
     -RedirectStandardError (Join-Path $logDir "serve.err.log") `
@@ -102,8 +135,8 @@ if (-not $NoNativeClient) {
         -StdErrLog (Join-Path $logDir "client.err.log")
 }
 
-$webUrl = "http://127.0.0.1:$WebPort/EmptyEpsilon.html?bridge=ws://127.0.0.1:$BridgePort&station=$Station&username=$WebUsername"
-$adminUrl = "http://127.0.0.1:$WebPort/admin.html"
+$webUrl = "${webScheme}://${PublicHost}:$WebPort/EmptyEpsilon.html?bridge=${bridgeScheme}://${PublicHost}:$BridgePort&station=$Station&username=$WebUsername"
+$adminUrl = "${webScheme}://${PublicHost}:$WebPort/admin.html"
 
 if (-not $NoBrowser) {
     Start-Process $webUrl | Out-Null
@@ -121,6 +154,11 @@ $state = [pscustomobject]@{
     client_launcher_pid = if ($client) { $client.Id } else { $null }
     web_url = $webUrl
     admin_url = $adminUrl
+    bind_host = $BindHost
+    public_host = $PublicHost
+    web_scheme = $webScheme
+    bridge_scheme = $bridgeScheme
+    tls_cert_path = if ($UseTls) { $TlsCertPath } else { $null }
     server_port = $ServerPort
     bridge_port = $BridgePort
     web_port = $WebPort

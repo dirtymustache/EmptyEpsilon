@@ -186,6 +186,17 @@ python scripts/wasm_ws_bridge.py --listen-host 0.0.0.0 --listen-port 35667 --tar
 python scripts/serve_wasm.py --host 0.0.0.0 --port 18086 --directory build-wasm --tls-cert local-dev-tls/192.168.4.22.cert.pem --tls-key local-dev-tls/192.168.4.22.key.pem --proxy-admin-base http://127.0.0.1:8080
 ```
 
+Or use the PowerShell helper with the same `local-dev-tls/<host>.cert.pem` convention:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_full_stack.ps1 -BindHost 0.0.0.0 -PublicHost 192.168.4.22 -UseTls
+```
+
+When `-UseTls` is set and no explicit `-TlsCertPath` or `-TlsKeyPath` is provided, the helper looks for:
+
+- `local-dev-tls/<PublicHost>.cert.pem`
+- `local-dev-tls/<PublicHost>.key.pem`
+
 Then open the client from another device with the matching LAN host or IP:
 
 ```text

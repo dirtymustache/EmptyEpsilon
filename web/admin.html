@@ -137,6 +137,58 @@
       margin: 0 0 12px;
     }
 
+    #device-links {
+      margin-top: 20px;
+      padding: 18px;
+      background: rgba(16, 26, 37, 0.92);
+      border: 1px solid rgba(113, 212, 255, 0.18);
+    }
+
+    #device-links h2 {
+      margin: 0 0 8px;
+    }
+
+    .qr-grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      margin-top: 14px;
+    }
+
+    .qr-card {
+      padding: 14px;
+      background: #0a0f15;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .qr-card h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      color: var(--accent);
+    }
+
+    .qr-code {
+      display: block;
+      width: 220px;
+      max-width: 100%;
+      aspect-ratio: 1;
+      margin: 0 auto 12px;
+      background: white;
+      object-fit: contain;
+    }
+
+    .qr-link {
+      display: block;
+      color: var(--ink);
+      word-break: break-all;
+      font-size: 13px;
+      text-decoration: none;
+    }
+
+    .qr-link:hover {
+      color: var(--accent);
+    }
+
     .status-grid {
       display: grid;
       gap: 10px;
@@ -236,6 +288,23 @@
       <div id="player-list">No player data yet.</div>
     </section>
 
+    <section id="device-links">
+      <h2>Device Links</h2>
+      <p>Scan one of these from the iPad to open the exact current HTTPS page.</p>
+      <div class="qr-grid">
+        <div class="qr-card">
+          <h3>Web Client</h3>
+          <img id="qr-web-client" class="qr-code" alt="QR code for web client link">
+          <a id="link-web-client" class="qr-link" target="_blank" rel="noopener noreferrer"></a>
+        </div>
+        <div class="qr-card">
+          <h3>Admin Page</h3>
+          <img id="qr-admin-page" class="qr-code" alt="QR code for admin page link">
+          <a id="link-admin-page" class="qr-link" target="_blank" rel="noopener noreferrer"></a>
+        </div>
+      </div>
+    </section>
+
     <div id="status">admin page ready</div>
   </main>
 
@@ -254,7 +323,29 @@
     const statusPaused = document.getElementById("status-paused");
     const statusPlayerCount = document.getElementById("status-player-count");
     const playerList = document.getElementById("player-list");
+    const qrWebClient = document.getElementById("qr-web-client");
+    const qrAdminPage = document.getElementById("qr-admin-page");
+    const linkWebClient = document.getElementById("link-web-client");
+    const linkAdminPage = document.getElementById("link-admin-page");
     let scenarioCatalogue = [];
+    const bridgePort = "35667";
+    const protocol = window.location.protocol === "https:" ? "https" : "http";
+    const wsProtocol = protocol === "https" ? "wss" : "ws";
+    const publicHost = window.location.hostname || "127.0.0.1";
+    const origin = window.location.origin;
+    const webClientUrl = `${origin}/EmptyEpsilon.html?bridge=${wsProtocol}://${publicHost}:${bridgePort}&station=relay&username=web_user&diag=1`;
+    const adminPageUrl = `${origin}/admin.html`;
+
+    function setQrCode(imgNode, linkNode, url) {
+      const qrSource = "https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=" + encodeURIComponent(url);
+      imgNode.src = qrSource;
+      imgNode.dataset.url = url;
+      linkNode.href = url;
+      linkNode.textContent = url;
+    }
+
+    setQrCode(qrWebClient, linkWebClient, webClientUrl);
+    setQrCode(qrAdminPage, linkAdminPage, adminPageUrl);
 
     if (window.location.protocol === "https:") {
       endpointInput.value = window.location.origin + "/admin-api/exec.lua";

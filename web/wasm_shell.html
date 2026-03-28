@@ -799,6 +799,7 @@
     if (!diagEnabled) {
       diagNode.classList.add("hidden");
     } else {
+      overlayNode.style.display = "block";
       pushDiagLine("browser shell ready");
       pushDiagLine("browser profile: " + activeProfileLabel + " -> " + configMountPoint);
     }
