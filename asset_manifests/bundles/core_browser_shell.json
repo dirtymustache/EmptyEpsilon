@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "bundle_id": "core_browser_shell",
+  "description": "Minimal browser shell assets needed for launcher, menu, join flow, and ship selection.",
+  "include": [
+    { "source": "resources/cursors", "target": "resources/cursors" },
+    { "source": "resources/gui", "target": "resources/gui" },
+    { "source": "resources/images", "target": "resources/images" },
+    { "source": "resources/locale", "target": "resources/locale" },
+    { "source": "resources/radar", "target": "resources/radar" },
+    { "source": "resources/shaders", "target": "resources/shaders" },
+    { "source": "resources/logo_full.png", "target": "resources/logo_full.png" },
+    { "source": "resources/logo_icon.png", "target": "resources/logo_icon.png" },
+    { "source": "resources/logo_white.png", "target": "resources/logo_white.png" },
+    { "source": "resources/gradient.png", "target": "resources/gradient.png" },
+    { "source": "resources/noise.png", "target": "resources/noise.png" },
+    { "source": "resources/redicule.png", "target": "resources/redicule.png" },
+    { "source": "resources/waypoint.png", "target": "resources/waypoint.png" },
+    { "source": "scripts", "target": "scripts" }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "scenario_id": "scenario_62_whatTheDickens",
+  "scenario_file": "scenario_62_whatTheDickens.lua",
+  "revision": 2,
+  "required_bundles": [
+    "scenario_resources_common",
+    "pack_angryfly",
+    "pack_asteroids",
+    "pack_msgamedev",
+    "scenario_audio_62"
+  ],
+  "optional_bundles": []
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "scenario_id": "scenario_29_surf",
+  "scenario_file": "scenario_29_surf.lua",
+  "revision": 2,
+  "required_bundles": [
+    "scenario_resources_common",
+    "pack_angryfly",
+    "pack_asteroids",
+    "pack_msgamedev"
+  ],
+  "optional_bundles": []
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "bundle_id": "scenario_resources_common",
+  "description": "Shared gameplay visuals and SFX required by browser scenarios, excluding music and scenario voice-over packs.",
+  "include": [
+    { "source": "resources/mesh", "target": "resources/mesh" },
+    { "source": "resources/planets", "target": "resources/planets" },
+    { "source": "resources/sfx", "target": "resources/sfx" },
+    { "source": "resources/skybox", "target": "resources/skybox" },
+    { "source": "resources/texture", "target": "resources/texture" },
+    { "source": "resources/blackHole3d.png", "target": "resources/blackHole3d.png" },
+    { "source": "resources/kessler_syndrome.png", "target": "resources/kessler_syndrome.png" },
+    { "source": "resources/Nebula1.png", "target": "resources/Nebula1.png" },
+    { "source": "resources/Nebula2.png", "target": "resources/Nebula2.png" },
+    { "source": "resources/Nebula3.png", "target": "resources/Nebula3.png" },
+    { "source": "resources/particle.png", "target": "resources/particle.png" },
+    { "source": "resources/redicule2.png", "target": "resources/redicule2.png" },
+    { "source": "resources/room_background.png", "target": "resources/room_background.png" },
+    { "source": "resources/room_door.png", "target": "resources/room_door.png" },
+    { "source": "resources/shield_circle.png", "target": "resources/shield_circle.png" },
+    { "source": "resources/topdownCrew0.png", "target": "resources/topdownCrew0.png" },
+    { "source": "resources/topdownCrew1.png", "target": "resources/topdownCrew1.png" },
+    { "source": "resources/topdownCrew2.png", "target": "resources/topdownCrew2.png" },
+    { "source": "resources/topdownCrew3.png", "target": "resources/topdownCrew3.png" },
+    { "source": "resources/topdownCrew4.png", "target": "resources/topdownCrew4.png" },
+    { "source": "resources/topdownCrew5.png", "target": "resources/topdownCrew5.png" },
+    { "source": "resources/wormHole3d.png", "target": "resources/wormHole3d.png" }
+  ]
+}

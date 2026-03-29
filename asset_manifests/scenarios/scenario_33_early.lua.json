@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "scenario_id": "scenario_33_early",
+  "scenario_file": "scenario_33_early.lua",
+  "revision": 2,
+  "required_bundles": [
+    "scenario_resources_common",
+    "pack_angryfly",
+    "pack_asteroids",
+    "pack_msgamedev"
+  ],
+  "optional_bundles": []
+}

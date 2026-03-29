@@ -250,6 +250,7 @@
       <div id="hud-actions">
         <button id="toggle-fullscreen" type="button">Enter Full Screen</button>
         <button id="back-to-ship-selection" type="button">Back To Ship Selection</button>
+        <button id="export-asset-trace" type="button" hidden>Export Asset Trace</button>
         <button id="ptt-server" type="button">Talk To Server</button>
         <button id="ptt-ship" type="button">Talk To Ship</button>
       </div>
@@ -309,6 +310,7 @@
     const audioStateNode = document.getElementById("audio-state");
     const fullscreenButton = document.getElementById("toggle-fullscreen");
     const backToShipSelectionButton = document.getElementById("back-to-ship-selection");
+    const exportAssetTraceButton = document.getElementById("export-asset-trace");
     const pttServerButton = document.getElementById("ptt-server");
     const pttShipButton = document.getElementById("ptt-ship");
     const toastNode = document.getElementById("toast");
@@ -324,6 +326,354 @@
     const defaultBridgeHost = window.location.hostname || "127.0.0.1";
     const defaultBridgeScheme = window.location.protocol === "https:" ? "wss" : "ws";
     const defaultBridgeUrl = defaultBridgeScheme + "://" + defaultBridgeHost + ":35667";
+    const defaultSessionManifestUrl = params.get("sessionManifest") || "/admin-api/browser/session-manifest.json";
+    const loadedBrowserBundles = new Map();
+    const browserScenarioRequestState = Object.create(null);
+    window.EmptyEpsilonBrowserScenarioRequestState = browserScenarioRequestState;
+    const assetTraceEnabled = params.get("assetTrace") === "1";
+    const assetTrace = {
+      enabled: assetTraceEnabled,
+      installed: false,
+      scenario: "",
+      paths: new Set(),
+      bundleIds: new Set(),
+      reset() {
+        this.paths.clear();
+        this.bundleIds.clear();
+      },
+      setScenario(value) {
+        this.scenario = String(value || "");
+      },
+      recordPath(value) {
+        if (!this.enabled || !value) {
+          return;
+        }
+        const normalized = String(value).replace(/\\/g, "/");
+        if (!normalized.startsWith("/resources/") && !normalized.startsWith("/packs/") && !normalized.startsWith("/scripts/")) {
+          return;
+        }
+        this.paths.add(normalized);
+      },
+      recordBundle(bundleId) {
+        if (this.enabled && bundleId) {
+          this.bundleIds.add(String(bundleId));
+        }
+      },
+      install() {
+        // Temporary browser-side instrumentation for tightening scenario bundle manifests.
+        // Remove this block once the trace-driven split is no longer needed.
+        if (!this.enabled || this.installed || typeof FS === "undefined" || typeof FS.open !== "function") {
+          return;
+        }
+        const originalOpen = FS.open.bind(FS);
+        const trace = this;
+        FS.open = function(path, flags, mode) {
+          let permissions = "";
+          try {
+            permissions = typeof FS.flagsToPermissionString === "function" ? FS.flagsToPermissionString(flags) : String(flags || "");
+          } catch (_error) {
+            permissions = String(flags || "");
+          }
+          if (permissions.indexOf("r") !== -1 && typeof path === "string") {
+            trace.recordPath(path);
+          }
+          return originalOpen(path, flags, mode);
+        };
+        this.installed = true;
+      },
+      export() {
+        const payload = {
+          scenario: this.scenario,
+          loaded_bundles: Array.from(this.bundleIds).sort(),
+          opened_paths: Array.from(this.paths).sort()
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const slug = (this.scenario || "asset-trace").replace(/[^a-z0-9._-]+/gi, "-");
+        link.href = url;
+        link.download = slug + ".asset-trace.json";
+        link.click();
+        URL.revokeObjectURL(url);
+        return payload;
+      }
+    };
+    window.EmptyEpsilonAssetTrace = assetTrace;
+
+    function resolveAssetUrl(value) {
+      return new URL(String(value || ""), window.location.href).toString();
+    }
+
+    function setOverlayVisible(visible) {
+      if (diagEnabled || visible) {
+        overlayNode.style.display = "block";
+      } else {
+        overlayNode.style.display = "none";
+      }
+    }
+
+    function ensureFsDirectory(absolutePath) {
+      const segments = absolutePath.split("/").filter(Boolean);
+      let current = "";
+      for (const segment of segments) {
+        current += "/" + segment;
+        try {
+          FS.mkdir(current);
+        } catch (error) {
+          if (!/File exists/.test(String(error))) {
+            throw error;
+          }
+        }
+      }
+    }
+
+    function parseBinaryBundle(buffer) {
+      const bytes = new Uint8Array(buffer);
+      const magicBytes = [69, 69, 66, 78, 68, 76, 49, 0];
+      for (let index = 0; index < magicBytes.length; index += 1) {
+        if (bytes[index] !== magicBytes[index]) {
+          throw new Error("Unknown binary bundle header");
+        }
+      }
+      const view = new DataView(buffer);
+      const version = view.getUint32(8, true);
+      if (version !== 1) {
+        throw new Error("Unsupported binary bundle version " + version);
+      }
+      const fileCount = view.getUint32(12, true);
+      const decoder = new TextDecoder("utf-8");
+      const files = [];
+      let offset = 16;
+      for (let fileIndex = 0; fileIndex < fileCount; fileIndex += 1) {
+        const pathLength = view.getUint32(offset, true);
+        offset += 4;
+        const dataLength = view.getUint32(offset, true);
+        offset += 4;
+        const pathBytes = bytes.slice(offset, offset + pathLength);
+        offset += pathLength;
+        const fileBytes = bytes.slice(offset, offset + dataLength);
+        offset += dataLength;
+        files.push({
+          path: decoder.decode(pathBytes),
+          data: fileBytes
+        });
+      }
+      return files;
+    }
+
+    const assetLoader = {
+      scenarioIndexPromise: null,
+      currentLoadPromise: Promise.resolve(),
+      ensureScenarioRequestState(scenarioFilename) {
+        const key = String(scenarioFilename || "");
+        if (!browserScenarioRequestState[key]) {
+          browserScenarioRequestState[key] = {
+            ready: false,
+            failed: false,
+            error: "",
+            status: ""
+          };
+        }
+        return browserScenarioRequestState[key];
+      },
+      reportScenarioStatus(scenarioFilename, message) {
+        const text = String(message || "");
+        const state = this.ensureScenarioRequestState(scenarioFilename);
+        state.status = text;
+        if (diagEnabled) {
+          window.EmptyEpsilonDiag("local assets [" + scenarioFilename + "]: " + text);
+        }
+      },
+      async fetchJsonWithFallback(urls) {
+        const attempts = [];
+        for (const candidate of urls) {
+          if (!candidate) {
+            continue;
+          }
+          const resolvedUrl = resolveAssetUrl(candidate);
+          try {
+            const response = await window.fetch(resolvedUrl, { cache: "default" });
+            if (!response.ok) {
+              throw new Error("HTTP " + response.status);
+            }
+            return await response.json();
+          } catch (error) {
+            attempts.push(resolvedUrl + " (" + error + ")");
+          }
+        }
+        throw new Error(attempts.join("; "));
+      },
+      async fetchArrayBufferWithFallback(urls) {
+        const attempts = [];
+        for (const candidate of urls) {
+          if (!candidate) {
+            continue;
+          }
+          const resolvedUrl = resolveAssetUrl(candidate);
+          try {
+            const response = await window.fetch(resolvedUrl, { cache: "default" });
+            if (!response.ok) {
+              throw new Error("HTTP " + response.status);
+            }
+            return await response.arrayBuffer();
+          } catch (error) {
+            attempts.push(resolvedUrl + " (" + error + ")");
+          }
+        }
+        throw new Error(attempts.join("; "));
+      },
+      async getScenarioIndex() {
+        if (!this.scenarioIndexPromise) {
+          this.scenarioIndexPromise = this.fetchJsonWithFallback(["/asset_bundles/index.json"]);
+        }
+        return this.scenarioIndexPromise;
+      },
+      async mountBundle(bundleManifest, scenarioFilename) {
+        if (!bundleManifest || !bundleManifest.bundle_id) {
+          throw new Error("Bundle manifest missing bundle_id");
+        }
+        if (loadedBrowserBundles.get(bundleManifest.bundle_id) === bundleManifest.content_hash) {
+          if (scenarioFilename) {
+            this.reportScenarioStatus(scenarioFilename, "Reusing bundle " + bundleManifest.bundle_id);
+          }
+          assetTrace.recordBundle(bundleManifest.bundle_id);
+          return;
+        }
+        if (scenarioFilename) {
+          this.reportScenarioStatus(scenarioFilename, "Downloading bundle " + bundleManifest.bundle_id);
+        }
+        setStatus("Downloading asset bundle " + bundleManifest.bundle_id, false);
+        const bundleBuffer = await this.fetchArrayBufferWithFallback([
+          bundleManifest.artifact_url,
+          bundleManifest.fallback_url
+        ]);
+        if (scenarioFilename) {
+          this.reportScenarioStatus(scenarioFilename, "Mounting bundle " + bundleManifest.bundle_id);
+        }
+        const bundleFiles = parseBinaryBundle(bundleBuffer);
+        for (const fileEntry of bundleFiles) {
+          const absolutePath = "/" + String(fileEntry.path || "").replace(/^\/+/, "");
+          const slashIndex = absolutePath.lastIndexOf("/");
+          if (slashIndex > 0) {
+            ensureFsDirectory(absolutePath.slice(0, slashIndex));
+          }
+          FS.writeFile(absolutePath, fileEntry.data);
+        }
+        loadedBrowserBundles.set(bundleManifest.bundle_id, bundleManifest.content_hash || "loaded");
+        assetTrace.recordBundle(bundleManifest.bundle_id);
+      },
+      async loadScenarioManifestObject(manifest, reasonLabel, scenarioFilename) {
+        if (!manifest || !Array.isArray(manifest.required_bundles)) {
+          throw new Error("Scenario manifest missing required_bundles");
+        }
+        assetTrace.setScenario(manifest.scenario_file || reasonLabel || "");
+        setStatus("Preparing " + (reasonLabel || manifest.scenario_file || "scenario"), false);
+        if (scenarioFilename) {
+          this.reportScenarioStatus(scenarioFilename, "Manifest resolved");
+        }
+        for (const bundleManifest of manifest.required_bundles) {
+          await this.mountBundle(bundleManifest, scenarioFilename);
+        }
+        if (scenarioFilename) {
+          this.reportScenarioStatus(scenarioFilename, "Scenario assets ready");
+        }
+        return manifest;
+      },
+      async loadScenarioManifestUrl(url, reasonLabel, scenarioFilename) {
+        const manifest = await this.fetchJsonWithFallback([url]);
+        return this.loadScenarioManifestObject(manifest, reasonLabel, scenarioFilename);
+      },
+      async preloadLaunchAssets() {
+        if (!params.has("bridge")) {
+          return;
+        }
+        setOverlayVisible(true);
+        const sessionManifest = await this.fetchJsonWithFallback([defaultSessionManifestUrl]);
+        if (!sessionManifest || !sessionManifest.scenario_manifest) {
+          throw new Error("Remote session manifest missing scenario_manifest");
+        }
+        await this.loadScenarioManifestObject(sessionManifest.scenario_manifest, sessionManifest.scenario_file || "remote scenario");
+      },
+      requestScenarioAssets(scenarioFilename, localSession) {
+        const state = this.ensureScenarioRequestState(scenarioFilename);
+        state.ready = false;
+        state.failed = false;
+        state.error = "";
+        state.status = "Queued";
+        let completionSent = false;
+        const complete = (kind, detail) => {
+          if (completionSent) {
+            return;
+          }
+          completionSent = true;
+          if (kind === "ready") {
+            state.ready = true;
+            state.failed = false;
+            state.error = "";
+            this.reportScenarioStatus(scenarioFilename, "Ready");
+            return;
+          }
+          state.ready = false;
+          state.failed = true;
+          state.error = String(detail || "Browser asset request failed");
+          this.reportScenarioStatus(scenarioFilename, "Failed: " + String(detail || "Browser asset request failed"));
+        };
+        const finishReady = () => {
+          complete("ready");
+        };
+        const finishFailed = (error) => {
+          complete("failed", error);
+        };
+        this.currentLoadPromise = this.currentLoadPromise.then(async () => {
+          if (!localSession) {
+            setOverlayVisible(true);
+          }
+          this.reportScenarioStatus(scenarioFilename, "Resolving manifest");
+          const scenarioIndex = await this.getScenarioIndex();
+          const scenarioEntry = scenarioIndex && scenarioIndex.scenarios ? scenarioIndex.scenarios[scenarioFilename] : null;
+          if (!scenarioEntry || !scenarioEntry.scenario_manifest_url) {
+            throw new Error("No browser asset manifest configured for " + scenarioFilename);
+          }
+          await this.loadScenarioManifestUrl(
+            scenarioEntry.scenario_manifest_url,
+            (localSession ? "local " : "") + scenarioFilename,
+            scenarioFilename
+          );
+          if (!localSession && !diagEnabled) {
+            setOverlayVisible(false);
+          }
+          setStatus("Scenario assets ready for " + scenarioFilename, false);
+          finishReady();
+        }).catch((error) => {
+          setStatus("Asset download failed for " + scenarioFilename, true);
+          if (!localSession) {
+            setOverlayVisible(true);
+          }
+          finishFailed(error);
+        });
+        return this.currentLoadPromise;
+      },
+      async handleRemoteSessionManifestChanged(manifestUrl, revision) {
+        setOverlayVisible(true);
+        setStatus("Updating scenario assets", false);
+        const sessionManifest = await this.fetchJsonWithFallback([manifestUrl || defaultSessionManifestUrl]);
+        if (!sessionManifest || !sessionManifest.scenario_manifest) {
+          throw new Error("Changed session manifest missing scenario_manifest");
+        }
+        await this.loadScenarioManifestObject(sessionManifest.scenario_manifest, sessionManifest.scenario_file || "updated scenario");
+        if (!diagEnabled) {
+          setOverlayVisible(false);
+        }
+        setStatus("Scenario assets updated" + (revision ? " (" + revision + ")" : ""), false);
+      }
+    };
+    window.EmptyEpsilonAssetLoader = assetLoader;
+    window.EmptyEpsilonOnRemoteSessionManifestChanged = function(manifestUrl, revision) {
+      assetLoader.handleRemoteSessionManifestChanged(manifestUrl, revision).catch(function(error) {
+        setOverlayVisible(true);
+        setStatus("Scenario asset update failed: " + error, true);
+      });
+    };
 
     function sanitizeProfileName(value) {
       return String(value || "").trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -884,25 +1234,34 @@
       preRun: [function() {
         if (typeof FS === "undefined" || typeof IDBFS === "undefined") {
           window.EmptyEpsilonDiag("idbfs: unavailable in runtime");
-          return;
-        }
-        try {
-          FS.mkdir(configMountPoint);
-        } catch (error) {
-          if (!/File exists/.test(String(error))) {
-            throw error;
+        } else {
+          try {
+            FS.mkdir(configMountPoint);
+          } catch (error) {
+            if (!/File exists/.test(String(error))) {
+              throw error;
+            }
           }
+          FS.mount(IDBFS, {}, configMountPoint);
+          addRunDependency("ee-idbfs-load");
+          window.EmptyEpsilonDiag("idbfs: syncing from browser storage at " + configMountPoint);
+          FS.syncfs(true, function(err) {
+            if (err) {
+              window.EmptyEpsilonDiag("idbfs: initial sync failed");
+            } else {
+              window.EmptyEpsilonDiag("idbfs: initial sync complete");
+            }
+            removeRunDependency("ee-idbfs-load");
+          });
         }
-        FS.mount(IDBFS, {}, configMountPoint);
-        addRunDependency("ee-idbfs-load");
-        window.EmptyEpsilonDiag("idbfs: syncing from browser storage at " + configMountPoint);
-        FS.syncfs(true, function(err) {
-          if (err) {
-            window.EmptyEpsilonDiag("idbfs: initial sync failed");
-          } else {
-            window.EmptyEpsilonDiag("idbfs: initial sync complete");
-          }
-          removeRunDependency("ee-idbfs-load");
+        addRunDependency("ee-browser-assets");
+        assetLoader.preloadLaunchAssets().then(function() {
+          removeRunDependency("ee-browser-assets");
+        }).catch(function(error) {
+          window.EmptyEpsilonDiag("asset preload failed: " + error);
+          setOverlayVisible(true);
+          setStatus("Scenario asset preload failed: " + error, true);
+          removeRunDependency("ee-browser-assets");
         });
       }],
       setStatus: function(message) {
@@ -916,6 +1275,7 @@
       },
       onRuntimeInitialized: function() {
         runtimeReady = true;
+        assetTrace.install();
         backToShipSelectionButton.disabled = false;
         setStatus("Runtime initialized", false);
         window.EmptyEpsilonDiag("runtime initialized");
@@ -972,6 +1332,12 @@
     }
     updateFullscreenButton();
     backToShipSelectionButton.disabled = true;
+    exportAssetTraceButton.hidden = !assetTraceEnabled;
+    exportAssetTraceButton.addEventListener("click", function(event) {
+      event.preventDefault();
+      const payload = assetTrace.export();
+      setStatus("Exported asset trace for " + (payload.scenario || "current session"), false);
+    });
     bindPushToTalkButton(pttServerButton, 0, "server");
     bindPushToTalkButton(pttShipButton, 1, "ship");
     window.addEventListener("pagehide", flushPersistentState);

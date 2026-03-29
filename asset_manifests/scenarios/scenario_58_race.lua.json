@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "scenario_id": "scenario_58_race",
+  "scenario_file": "scenario_58_race.lua",
+  "revision": 2,
+  "required_bundles": [
+    "scenario_resources_common",
+    "pack_angryfly",
+    "pack_asteroids",
+    "pack_msgamedev",
+    "scenario_audio_58"
+  ],
+  "optional_bundles": []
+}

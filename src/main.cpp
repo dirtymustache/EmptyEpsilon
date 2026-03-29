@@ -1,6 +1,7 @@
 #include <memory>
 #include <set>
 #include <filesystem>
+#include <cstdlib>
 #include <string.h>
 #include <i18n.h>
 #include <multiplayer_proxy.h>
@@ -49,6 +50,7 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#include <unordered_map>
 #endif
 
 glm::vec3 camera_position;
@@ -78,6 +80,149 @@ static void browserDiag(const string& message)
         if (typeof window.EmptyEpsilonDiag === "function")
             window.EmptyEpsilonDiag(UTF8ToString($0));
     }, message.c_str());
+}
+
+namespace
+{
+    struct BrowserScenarioAssetRequestState
+    {
+        bool ready = false;
+        bool failed = false;
+        string error;
+        string status;
+    };
+
+    std::unordered_map<string, BrowserScenarioAssetRequestState> browserScenarioAssetRequests;
+
+    EM_JS(int, ee_browser_request_ready, (const char* scenario_filename), {
+        var state = window.EmptyEpsilonBrowserScenarioRequestState;
+        var entry = state ? state[UTF8ToString(scenario_filename)] : null;
+        return entry && entry.ready ? 1 : 0;
+    });
+
+    EM_JS(int, ee_browser_request_failed, (const char* scenario_filename), {
+        var state = window.EmptyEpsilonBrowserScenarioRequestState;
+        var entry = state ? state[UTF8ToString(scenario_filename)] : null;
+        return entry && entry.failed ? 1 : 0;
+    });
+
+    EM_JS(char*, ee_browser_request_error, (const char* scenario_filename), {
+        var state = window.EmptyEpsilonBrowserScenarioRequestState;
+        var entry = state ? state[UTF8ToString(scenario_filename)] : null;
+        return stringToNewUTF8(entry && entry.error ? String(entry.error) : "");
+    });
+
+    EM_JS(char*, ee_browser_request_status, (const char* scenario_filename), {
+        var state = window.EmptyEpsilonBrowserScenarioRequestState;
+        var entry = state ? state[UTF8ToString(scenario_filename)] : null;
+        return stringToNewUTF8(entry && entry.status ? String(entry.status) : "");
+    });
+}
+
+void requestBrowserScenarioAssets(const string& scenario_filename, bool local_session)
+{
+    auto& state = browserScenarioAssetRequests[scenario_filename];
+    state.ready = false;
+    state.failed = false;
+    state.error = "";
+    state.status = "Requesting browser asset load";
+    browserDiag("browser assets: requested for " + scenario_filename + (local_session ? " (local)" : " (remote)"));
+    EM_ASM({
+        try {
+            if (window.EmptyEpsilonAssetLoader && typeof window.EmptyEpsilonAssetLoader.requestScenarioAssets === "function") {
+                window.EmptyEpsilonAssetLoader.requestScenarioAssets(UTF8ToString($0), $1 ? true : false);
+                return;
+            }
+            window.EmptyEpsilonBrowserScenarioRequestState = window.EmptyEpsilonBrowserScenarioRequestState || Object.create(null);
+            var unavailableEntry = {};
+            unavailableEntry.ready = false;
+            unavailableEntry.failed = true;
+            unavailableEntry.error = "Browser asset loader unavailable";
+            unavailableEntry.status = "Failed: Browser asset loader unavailable";
+            window.EmptyEpsilonBrowserScenarioRequestState[UTF8ToString($0)] = unavailableEntry;
+        } catch (error) {
+            window.EmptyEpsilonBrowserScenarioRequestState = window.EmptyEpsilonBrowserScenarioRequestState || Object.create(null);
+            var failedEntry = {};
+            failedEntry.ready = false;
+            failedEntry.failed = true;
+            failedEntry.error = String(error || "Browser asset request failed");
+            failedEntry.status = "Failed: " + String(error || "Browser asset request failed");
+            window.EmptyEpsilonBrowserScenarioRequestState[UTF8ToString($0)] = failedEntry;
+        }
+    }, scenario_filename.c_str(), local_session ? 1 : 0);
+}
+
+bool browserScenarioAssetsReady(const string& scenario_filename)
+{
+#ifdef __EMSCRIPTEN__
+    if (ee_browser_request_ready(scenario_filename.c_str()))
+        return true;
+#endif
+    auto it = browserScenarioAssetRequests.find(scenario_filename);
+    return it != browserScenarioAssetRequests.end() && it->second.ready;
+}
+
+bool browserScenarioAssetsFailed(const string& scenario_filename)
+{
+#ifdef __EMSCRIPTEN__
+    if (ee_browser_request_failed(scenario_filename.c_str()))
+        return true;
+#endif
+    auto it = browserScenarioAssetRequests.find(scenario_filename);
+    return it != browserScenarioAssetRequests.end() && it->second.failed;
+}
+
+string browserScenarioAssetsError(const string& scenario_filename)
+{
+#ifdef __EMSCRIPTEN__
+    char* script_result = ee_browser_request_error(scenario_filename.c_str());
+    if (script_result)
+    {
+        string result = script_result;
+        std::free(script_result);
+        if (!result.empty())
+            return result;
+    }
+#endif
+    auto it = browserScenarioAssetRequests.find(scenario_filename);
+    if (it == browserScenarioAssetRequests.end())
+        return "";
+    return it->second.error;
+}
+
+string browserScenarioAssetsStatus(const string& scenario_filename)
+{
+#ifdef __EMSCRIPTEN__
+    char* script_result = ee_browser_request_status(scenario_filename.c_str());
+    if (script_result)
+    {
+        string result = script_result;
+        std::free(script_result);
+        if (!result.empty())
+            return result;
+    }
+#endif
+    auto it = browserScenarioAssetRequests.find(scenario_filename);
+    if (it == browserScenarioAssetRequests.end())
+        return "";
+    return it->second.status;
+}
+
+void clearBrowserScenarioAssetRequest(const string& scenario_filename)
+{
+    browserScenarioAssetRequests.erase(scenario_filename);
+    EM_ASM({
+        if (window.EmptyEpsilonBrowserScenarioRequestState)
+            delete window.EmptyEpsilonBrowserScenarioRequestState[UTF8ToString($0)];
+    }, scenario_filename.c_str());
+}
+
+void notifyBrowserRemoteSessionManifestChanged(const string& manifest_url, const string& revision)
+{
+    EM_ASM({
+        if (typeof window.EmptyEpsilonOnRemoteSessionManifestChanged === "function")
+            window.EmptyEpsilonOnRemoteSessionManifestChanged(UTF8ToString($0), UTF8ToString($1));
+    }, manifest_url.c_str(), revision.c_str());
 }
 #endif
 

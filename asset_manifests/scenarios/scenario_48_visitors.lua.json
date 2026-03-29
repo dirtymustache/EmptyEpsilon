@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "scenario_id": "scenario_48_visitors",
+  "scenario_file": "scenario_48_visitors.lua",
+  "revision": 2,
+  "required_bundles": [
+    "scenario_resources_common",
+    "pack_angryfly",
+    "pack_asteroids",
+    "pack_msgamedev",
+    "scenario_audio_48"
+  ],
+  "optional_bundles": []
+}

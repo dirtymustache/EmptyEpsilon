@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "scenario_id": "scenario_51_deliverAmbassador",
+  "scenario_file": "scenario_51_deliverAmbassador.lua",
+  "revision": 2,
+  "required_bundles": [
+    "scenario_resources_common",
+    "pack_angryfly",
+    "pack_msgamedev",
+    "scenario_audio_51"
+  ],
+  "optional_bundles": []
+}
