@@ -253,6 +253,8 @@
         <button id="export-asset-trace" type="button" hidden>Export Asset Trace</button>
         <button id="ptt-server" type="button">Talk To Server</button>
         <button id="ptt-ship" type="button">Talk To Ship</button>
+        <button id="help-btn" type="button">Help</button>
+        <button id="next-station-btn" type="button">Next Station</button>
       </div>
     </div>
     <div id="status">Initializing...</div>
@@ -313,6 +315,8 @@
     const exportAssetTraceButton = document.getElementById("export-asset-trace");
     const pttServerButton = document.getElementById("ptt-server");
     const pttShipButton = document.getElementById("ptt-ship");
+    const helpButton = document.getElementById("help-btn");
+    const nextStationButton = document.getElementById("next-station-btn");
     const toastNode = document.getElementById("toast");
     let runtimeReady = false;
     let microphoneState = "unknown";
@@ -837,6 +841,20 @@
       Module._ee_browser_set_escape_key(isDown ? 1 : 0);
     }
 
+    function forwardHelpKey(isDown) {
+      if (!runtimeReady || !window.Module || typeof Module._ee_browser_set_help_key !== "function") {
+        return;
+      }
+      Module._ee_browser_set_help_key(isDown ? 1 : 0);
+    }
+
+    function forwardNextStationKey(isDown) {
+      if (!runtimeReady || !window.Module || typeof Module._ee_browser_set_next_station_key !== "function") {
+        return;
+      }
+      Module._ee_browser_set_next_station_key(isDown ? 1 : 0);
+    }
+
     function triggerBackToShipSelection() {
       if (!runtimeReady) {
         setStatus("Runtime not ready yet", true);
@@ -1340,6 +1358,14 @@
     });
     bindPushToTalkButton(pttServerButton, 0, "server");
     bindPushToTalkButton(pttShipButton, 1, "ship");
+    helpButton.addEventListener("click", function() {
+      forwardHelpKey(true);
+      window.setTimeout(function() { forwardHelpKey(false); }, 60);
+    });
+    nextStationButton.addEventListener("click", function() {
+      forwardNextStationKey(true);
+      window.setTimeout(function() { forwardNextStationKey(false); }, 60);
+    });
     window.addEventListener("pagehide", flushPersistentState);
     document.addEventListener("visibilitychange", function() {
       if (document.visibilityState === "hidden") {

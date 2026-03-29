@@ -150,4 +150,14 @@ extern "C" EMSCRIPTEN_KEEPALIVE void ee_browser_set_voice_key(int target_identif
     if (virtual_key >= 0)
         sp::io::Keybinding::setVirtualKey(virtual_key, down ? 1.0f : 0.0f);
 }
+
+extern "C" EMSCRIPTEN_KEEPALIVE void ee_browser_set_help_key(int down)
+{
+    sp::io::Keybinding::setVirtualKey(253, down ? 1.0f : 0.0f);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE void ee_browser_set_next_station_key(int down)
+{
+    sp::io::Keybinding::setVirtualKey(254, down ? 1.0f : 0.0f);
+}
 #endif

@@ -76,26 +76,51 @@ void Keys::TopDownKeys::init()
 Keys::Keys() :
     // General game-wide binds
     pause("PAUSE", "P"),
+#ifndef __EMSCRIPTEN__
     help("HELP", "F1"),
+#else
+    help("HELP"),
+#endif
     escape("ESCAPE", {"Escape", "Home", "Keypad 7", "AC Back"}),
     zoom_in("ZOOM_IN"),
     zoom_out("ZOOM_OUT"),
     voice_all("VOICE_ALL", "Backspace"),
     voice_ship("VOICE_SHIP"),
+#ifndef __EMSCRIPTEN__
     debug_show_fps("DEBUG_SHOW_FPS", "F10"),
     debug_show_timing("DEBUG_SHOW_TIMING", "F11"),
+#else
+    debug_show_fps("DEBUG_SHOW_FPS"),
+    debug_show_timing("DEBUG_SHOW_TIMING"),
+#endif
 #ifdef DEBUG
+#ifndef __EMSCRIPTEN__
     debug_show_colliders("DEBUG_SHOW_COLLIDERS", "F12"),
+#else
+    debug_show_colliders("DEBUG_SHOW_COLLIDERS"),
+#endif
 #endif
 
     // Crew screen binds
+#ifndef __EMSCRIPTEN__
     next_station("STATION_NEXT", "Tab"),
+#else
+    next_station("STATION_NEXT"),
+#endif
     prev_station("STATION_PREVIOUS"),
+#ifndef __EMSCRIPTEN__
     station_helms("STATION_HELMS", "F2"),
     station_weapons("STATION_WEAPONS", "F3"),
     station_engineering("STATION_ENGINEERING", "F4"),
     station_science("STATION_SCIENCE", "F5"),
     station_relay("STATION_RELAY", "F6"),
+#else
+    station_helms("STATION_HELMS"),
+    station_weapons("STATION_WEAPONS"),
+    station_engineering("STATION_ENGINEERING"),
+    station_science("STATION_SCIENCE"),
+    station_relay("STATION_RELAY"),
+#endif
 
     // Main screen
     mainscreen_forward("MAINSCREEN_FORWARD", "Up"),
@@ -103,7 +128,11 @@ Keys::Keys() :
     mainscreen_right("MAINSCREEN_RIGHT", "Right"),
     mainscreen_back("MAINSCREEN_BACK", "Down"),
     mainscreen_target("MAINSCREEN_TARGET", "T"),
+#ifndef __EMSCRIPTEN__
     mainscreen_tactical_radar("MAINSCREEN_TACTICAL", "Tab"),
+#else
+    mainscreen_tactical_radar("MAINSCREEN_TACTICAL"),
+#endif
     mainscreen_long_range_radar("MAINSCREEN_LONG_RANGE", "Q"),
     mainscreen_first_person("MAINSCREEN_FIRST_PERSON", "F"),
 
@@ -315,7 +344,11 @@ Keys::Keys() :
 
     // GM screen
     gm_delete("GM_DELETE", "Delete"),
+#ifndef __EMSCRIPTEN__
     gm_clipboardcopy("GM_CLIPBOARD_COPY", "F5"),
+#else
+    gm_clipboardcopy("GM_CLIPBOARD_COPY"),
+#endif
     gm_show_callsigns("GM_SHOW_CALLSIGNS", "C"),
 
     // Spectator screen
