@@ -347,10 +347,10 @@
     setQrCode(qrWebClient, linkWebClient, webClientUrl);
     setQrCode(qrAdminPage, linkAdminPage, adminPageUrl);
 
-    if (window.location.protocol === "https:") {
-      endpointInput.value = window.location.origin + "/admin-api/exec.lua";
-    } else {
+    if (window.location.protocol === "file:") {
       endpointInput.value = "http://" + defaultHost + ":8080/exec.lua";
+    } else {
+      endpointInput.value = window.location.origin + "/admin-api/exec.lua";
     }
 
     function getScenariosEndpoint() {

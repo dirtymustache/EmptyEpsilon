@@ -224,6 +224,7 @@ def build_web_derived_assets(source_root: Path, derived_root: Path) -> None:
     if configured:
         candidates.append([configured])
     candidates.append(["py", "-3"])
+    candidates.append(["python3"])
     candidates.append(["python"])
 
     last_error: Exception | None = None

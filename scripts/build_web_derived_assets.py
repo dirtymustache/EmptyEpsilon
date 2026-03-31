@@ -53,7 +53,8 @@ def optimize_image_bytes(data: bytes, suffix: str, max_dim: int, quality: int | 
         resized = image
         new_size = resize_dimensions(image.width, image.height, max_dim)
         if new_size != image.size:
-            resized = image.resize(new_size, Image.Resampling.LANCZOS)
+            _lanczos = getattr(Image, "Resampling", Image).LANCZOS
+            resized = image.resize(new_size, _lanczos)
 
         output = io.BytesIO()
         suffix = suffix.lower()
