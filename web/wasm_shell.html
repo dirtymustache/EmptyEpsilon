@@ -191,12 +191,151 @@
       outline: none;
     }
 
-    #controls input:focus {
+    #controls input:focus,
+    #controls select:focus {
       border-color: rgba(111, 211, 255, 0.5);
     }
 
-    #controls select:focus {
-      border-color: rgba(111, 211, 255, 0.5);
+    /* Session list */
+    #session-list {
+      display: grid;
+      gap: 6px;
+    }
+
+    .session-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      background: rgba(14, 20, 31, 0.8);
+      cursor: pointer;
+      transition: border-color 80ms;
+    }
+
+    .session-option:hover {
+      border-color: rgba(111, 211, 255, 0.35);
+    }
+
+    .session-option.selected {
+      border-color: rgba(111, 211, 255, 0.65);
+      background: rgba(20, 50, 75, 0.85);
+    }
+
+    .session-option input[type="radio"] {
+      width: auto;
+      margin-top: 3px;
+      flex-shrink: 0;
+      accent-color: var(--accent);
+    }
+
+    .session-label {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .session-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .session-desc {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .session-count {
+      margin-left: auto;
+      flex-shrink: 0;
+      font-size: 11px;
+      color: var(--accent);
+      padding-top: 3px;
+    }
+
+    .session-loading {
+      color: var(--muted);
+      font-size: 12px;
+      padding: 8px 0;
+    }
+
+    /* Station grid */
+    #station-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .station-btn {
+      padding: 8px 6px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      background: rgba(14, 20, 31, 0.8);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 12px;
+      text-align: center;
+      transition: border-color 80ms, color 80ms;
+    }
+
+    .station-btn:hover {
+      border-color: rgba(111, 211, 255, 0.35);
+      color: var(--ink);
+    }
+
+    .station-btn.selected {
+      border-color: rgba(111, 211, 255, 0.65);
+      background: rgba(20, 50, 75, 0.85);
+      color: var(--accent);
+    }
+
+    #join-btn {
+      padding: 12px;
+      border: 1px solid rgba(111, 211, 255, 0.5);
+      background: rgba(20, 60, 90, 0.9);
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: background 80ms, border-color 80ms;
+    }
+
+    #join-btn:hover:not(:disabled) {
+      background: rgba(30, 80, 115, 0.95);
+      border-color: rgba(111, 211, 255, 0.8);
+    }
+
+    #join-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    #advanced-toggle {
+      color: var(--muted);
+      font-size: 11px;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      pointer-events: auto;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    #advanced-toggle:hover {
+      color: var(--ink);
+    }
+
+    #advanced-panel {
+      display: none;
+      gap: 8px;
+    }
+
+    #advanced-panel.open {
+      display: grid;
     }
 
     #actions {
@@ -263,40 +402,64 @@
     <canvas id="canvas" tabindex="0"></canvas>
     <div id="toast" aria-live="polite"></div>
     <div id="overlay">
-      <strong>Browser milestone:</strong> local spectator and bridge-connected multiplayer client slices are both available.
+      <strong>EmptyEpsilon</strong>
       <div id="controls">
         <label>
-          Bridge URL
-          <input id="bridge-url" type="text" value="" spellcheck="false">
+          Your Name
+          <input id="player-name" type="text" value="web_user" spellcheck="false" autocomplete="nickname">
         </label>
         <label>
-          Player Name
-          <input id="player-name" type="text" value="web_user" spellcheck="false">
+          Mission
+          <div id="session-list">
+            <div class="session-loading">Loading available missions…</div>
+          </div>
         </label>
         <label>
-          Bridge Station
-          <select id="station-select">
-            <option value="relay" selected>Relay</option>
-            <option value="science">Science</option>
-            <option value="helms">Helms</option>
-            <option value="weapons">Weapons</option>
-            <option value="engineering">Engineering</option>
-            <option value="operations">Operations</option>
-            <option value="tactical">Tactical</option>
-            <option value="singlepilot">Single Pilot</option>
-            <option value="mainscreen">Main Screen</option>
-          </select>
+          Station
+          <div id="station-grid">
+            <button class="station-btn selected" type="button" data-station="relay">Relay</button>
+            <button class="station-btn" type="button" data-station="helms">Helms</button>
+            <button class="station-btn" type="button" data-station="weapons">Weapons</button>
+            <button class="station-btn" type="button" data-station="science">Science</button>
+            <button class="station-btn" type="button" data-station="engineering">Engineering</button>
+            <button class="station-btn" type="button" data-station="operations">Operations</button>
+            <button class="station-btn" type="button" data-station="tactical">Tactical</button>
+            <button class="station-btn" type="button" data-station="singlepilot">Single Pilot</button>
+            <button class="station-btn" type="button" data-station="mainscreen">Main Screen</button>
+          </div>
         </label>
-        <div id="actions">
-          <button id="launch-spectator" type="button">Local Spectator</button>
-          <button id="launch-menu" type="button">Main Menu</button>
-          <button id="launch-bridge" type="button">Bridge Connect</button>
+        <button id="join-btn" type="button" disabled>Join Mission</button>
+        <div id="audio-state" style="color: var(--muted); font-size: 12px;">Audio: waiting for runtime</div>
+        <button id="advanced-toggle" type="button">Advanced options</button>
+        <div id="advanced-panel">
+          <div id="actions">
+            <button id="launch-spectator" type="button">Local Spectator</button>
+            <button id="launch-menu" type="button">Main Menu</button>
+            <button id="test-audio" type="button">Test Audio</button>
+          </div>
+          <label>
+            Bridge URL (override)
+            <input id="bridge-url" type="text" value="" spellcheck="false" placeholder="wss://…">
+          </label>
+          <label>
+            Station (override)
+            <select id="station-select">
+              <option value="relay" selected>Relay</option>
+              <option value="science">Science</option>
+              <option value="helms">Helms</option>
+              <option value="weapons">Weapons</option>
+              <option value="engineering">Engineering</option>
+              <option value="operations">Operations</option>
+              <option value="tactical">Tactical</option>
+              <option value="singlepilot">Single Pilot</option>
+              <option value="mainscreen">Main Screen</option>
+            </select>
+          </label>
+          <div id="actions">
+            <button id="launch-bridge" type="button">Bridge Connect</button>
+          </div>
+          <div id="hint">URL params: <code>?bridge=</code>, <code>?station=</code>, <code>?username=</code>, <code>?mode=menu</code>.</div>
         </div>
-        <div id="actions">
-          <button id="test-audio" type="button">Test Audio</button>
-        </div>
-        <div id="hint">URL params still work: <code>?bridge=ws://&lt;this-host&gt;:35667</code>, <code>?station=relay</code>, <code>?mode=menu</code>, <code>?username=web_user</code>.</div>
-        <div id="audio-state" style="margin-top: 6px; color: var(--muted); font-size: 12px;">Audio: waiting for runtime</div>
       </div>
       <div id="diag">browser shell ready</div>
     </div>
@@ -310,6 +473,11 @@
     const playerNameInput = document.getElementById("player-name");
     const stationSelect = document.getElementById("station-select");
     const audioStateNode = document.getElementById("audio-state");
+    const joinBtn = document.getElementById("join-btn");
+    const sessionListNode = document.getElementById("session-list");
+    const stationGrid = document.getElementById("station-grid");
+    const advancedToggle = document.getElementById("advanced-toggle");
+    const advancedPanel = document.getElementById("advanced-panel");
     const fullscreenButton = document.getElementById("toggle-fullscreen");
     const backToShipSelectionButton = document.getElementById("back-to-ship-selection");
     const exportAssetTraceButton = document.getElementById("export-asset-trace");
@@ -734,12 +902,184 @@
       window.location.href = url.toString();
     }
 
+    // ── Lobby: session + station picker ─────────────────────────────────────
+
+    const lobbyState = {
+      sessions: [],        // loaded from sessions.json
+      selectedSessionId: null,
+      selectedStation: "relay",
+      statusPolls: {},     // id → { count, timer }
+    };
+
+    function lobbyGetSelectedBridgeUrl() {
+      // Advanced override takes precedence when filled in
+      const override = bridgeInput.value.trim();
+      if (override) return override;
+      const session = lobbyState.sessions.find(s => s.id === lobbyState.selectedSessionId);
+      return session ? session.bridge_url : defaultBridgeUrl;
+    }
+
+    function lobbyGetSelectedStation() {
+      const override = stationSelect.value;
+      // stationSelect defaults to relay; only treat it as an override if advanced panel is open
+      if (advancedPanel.classList.contains("open")) return override;
+      return lobbyState.selectedStation;
+    }
+
+    function lobbyUpdateJoinEnabled() {
+      joinBtn.disabled = !lobbyState.selectedSessionId || !lobbyState.selectedStation;
+    }
+
+    function lobbyRenderSessions() {
+      if (!lobbyState.sessions.length) {
+        sessionListNode.innerHTML = '<div class="session-loading">No missions available.</div>';
+        return;
+      }
+      sessionListNode.innerHTML = "";
+      for (const session of lobbyState.sessions) {
+        const row = document.createElement("div");
+        row.className = "session-option" + (session.id === lobbyState.selectedSessionId ? " selected" : "");
+        row.dataset.sessionId = session.id;
+
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "session";
+        radio.value = session.id;
+        radio.checked = session.id === lobbyState.selectedSessionId;
+
+        const labelDiv = document.createElement("div");
+        labelDiv.className = "session-label";
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "session-name";
+        nameSpan.textContent = session.name || session.id;
+
+        const descSpan = document.createElement("span");
+        descSpan.className = "session-desc";
+        descSpan.textContent = session.description || "";
+
+        labelDiv.appendChild(nameSpan);
+        if (session.description) labelDiv.appendChild(descSpan);
+
+        const countSpan = document.createElement("span");
+        countSpan.className = "session-count";
+        countSpan.id = "session-count-" + session.id;
+        const cached = lobbyState.statusPolls[session.id];
+        countSpan.textContent = cached && cached.count != null ? cached.count + " crew online" : "";
+
+        row.appendChild(radio);
+        row.appendChild(labelDiv);
+        row.appendChild(countSpan);
+
+        row.addEventListener("click", function() {
+          lobbyState.selectedSessionId = session.id;
+          lobbyRenderSessions();
+          lobbyUpdateJoinEnabled();
+        });
+
+        sessionListNode.appendChild(row);
+      }
+    }
+
+    function lobbyUpdateCount(sessionId, count) {
+      const node = document.getElementById("session-count-" + sessionId);
+      if (node) node.textContent = count != null ? count + " crew online" : "";
+    }
+
+    async function lobbyPollStatus(session) {
+      if (!session.status_url) return;
+      try {
+        const response = await window.fetch(resolveAssetUrl(session.status_url), { cache: "no-store" });
+        if (!response.ok) return;
+        const text = await response.text();
+        // Response is JSONP: window.EmptyEpsilonAdminStatus && window.EmptyEpsilonAdminStatus({...});
+        const match = text.match(/EmptyEpsilonAdminStatus\s*\(\s*(\{[\s\S]*\})\s*\)/);
+        if (!match) return;
+        const data = JSON.parse(match[1]);
+        const count = data && typeof data.player_count === "number" ? data.player_count : null;
+        if (!lobbyState.statusPolls[session.id]) lobbyState.statusPolls[session.id] = {};
+        lobbyState.statusPolls[session.id].count = count;
+        lobbyUpdateCount(session.id, count);
+      } catch (_e) {
+        // status poll failures are silent
+      }
+    }
+
+    function lobbyStartPolling() {
+      for (const session of lobbyState.sessions) {
+        lobbyPollStatus(session);
+        const timer = window.setInterval(() => lobbyPollStatus(session), 5000);
+        if (!lobbyState.statusPolls[session.id]) lobbyState.statusPolls[session.id] = {};
+        lobbyState.statusPolls[session.id].timer = timer;
+      }
+    }
+
+    async function lobbyInit() {
+      // If bridge= param already in URL, skip lobby entirely
+      if (params.has("bridge") || params.has("mode")) return;
+
+      sessionListNode.innerHTML = '<div class="session-loading">Loading available missions…</div>';
+      setOverlayVisible(true);
+
+      try {
+        const response = await window.fetch("sessions.json", { cache: "no-store" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const data = await response.json();
+        lobbyState.sessions = Array.isArray(data.sessions) ? data.sessions : [];
+      } catch (_e) {
+        // sessions.json missing or failed: fall back to a single session using the default bridge
+        lobbyState.sessions = [{
+          id: "default",
+          name: "EmptyEpsilon",
+          description: "",
+          bridge_url: defaultBridgeUrl,
+          status_url: "/admin-api/status.js"
+        }];
+      }
+
+      if (lobbyState.sessions.length === 1) {
+        lobbyState.selectedSessionId = lobbyState.sessions[0].id;
+      }
+
+      lobbyRenderSessions();
+      lobbyUpdateJoinEnabled();
+      lobbyStartPolling();
+    }
+
+    // Station grid
+    for (const btn of stationGrid.querySelectorAll(".station-btn")) {
+      btn.addEventListener("click", function() {
+        lobbyState.selectedStation = this.dataset.station;
+        for (const b of stationGrid.querySelectorAll(".station-btn")) {
+          b.classList.toggle("selected", b === this);
+        }
+        lobbyUpdateJoinEnabled();
+      });
+    }
+
+    // Join button
+    joinBtn.addEventListener("click", function() {
+      const bridgeUrl = lobbyGetSelectedBridgeUrl();
+      const station = lobbyGetSelectedStation();
+      const nextParams = new URLSearchParams();
+      nextParams.set("bridge", bridgeUrl);
+      nextParams.set("station", station);
+      const username = playerNameInput.value.trim();
+      if (username) nextParams.set("username", username);
+      launchWithParams(nextParams);
+    });
+
+    // Advanced toggle
+    advancedToggle.addEventListener("click", function() {
+      advancedPanel.classList.toggle("open");
+      advancedToggle.textContent = advancedPanel.classList.contains("open") ? "Hide advanced options" : "Advanced options";
+    });
+
+    // Advanced panel — legacy buttons
     document.getElementById("launch-spectator").addEventListener("click", function() {
       const nextParams = new URLSearchParams();
       const username = playerNameInput.value.trim();
-      if (username) {
-        nextParams.set("username", username);
-      }
+      if (username) nextParams.set("username", username);
       launchWithParams(nextParams);
     });
 
@@ -747,9 +1087,7 @@
       const nextParams = new URLSearchParams();
       nextParams.set("mode", "menu");
       const username = playerNameInput.value.trim();
-      if (username) {
-        nextParams.set("username", username);
-      }
+      if (username) nextParams.set("username", username);
       launchWithParams(nextParams);
     });
 
@@ -758,11 +1096,11 @@
       nextParams.set("bridge", bridgeInput.value.trim() || defaultBridgeUrl);
       nextParams.set("station", stationSelect.value);
       const username = playerNameInput.value.trim();
-      if (username) {
-        nextParams.set("username", username);
-      }
+      if (username) nextParams.set("username", username);
       launchWithParams(nextParams);
     });
+
+    lobbyInit();
 
     function setStatus(message, isError) {
       const suffix = " [profile " + activeProfileLabel + "]";
