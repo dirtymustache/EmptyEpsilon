@@ -82,6 +82,7 @@ ShaderRegistry::ScopedShader lookUpShader(MeshRenderComponent& mrc)
 
 void activateAndBindMeshTextures(MeshRenderComponent& mrc)
 {
+    glActiveTexture(GL_TEXTURE0 + ShaderRegistry::textureIndex(ShaderRegistry::Textures::BaseMap));
     if (mrc.getTexture())
         mrc.getTexture()->bind();
 
@@ -102,6 +103,8 @@ void activateAndBindMeshTextures(MeshRenderComponent& mrc)
         glActiveTexture(GL_TEXTURE0 + ShaderRegistry::textureIndex(ShaderRegistry::Textures::NormalMap));
         mrc.getNormalTexture()->bind();
     }
+
+    glActiveTexture(GL_TEXTURE0 + ShaderRegistry::textureIndex(ShaderRegistry::Textures::BaseMap));
 }
 
 void drawMesh(MeshRenderComponent& mrc, ShaderRegistry::ScopedShader& shader)
@@ -113,9 +116,7 @@ void drawMesh(MeshRenderComponent& mrc, ShaderRegistry::ScopedShader& shader)
 
     mrc.getMesh()->render(positions.get(), texcoords.get(), normals.get(), tangent.get());
 
-    // wut iz?
-    if (mrc.getSpecularTexture() || mrc.getIlluminationTexture())
-        glActiveTexture(GL_TEXTURE0);
+    glActiveTexture(GL_TEXTURE0);
 }
 
 void MeshRenderSystem::update(float delta)

@@ -141,7 +141,7 @@ def main() -> None:
     parser.add_argument("--directory", default="build-wasm")
     parser.add_argument("--tls-cert", help="PEM certificate file to enable HTTPS")
     parser.add_argument("--tls-key", help="PEM private key file to enable HTTPS")
-    parser.add_argument("--proxy-admin-base", default="http://127.0.0.1:8080", help="Optional base URL for proxying /admin-api/*")
+    parser.add_argument("--proxy-admin-base", default="http://127.0.0.1:8181", help="Optional base URL for proxying /admin-api/*")
     args = parser.parse_args()
 
     mimetypes.add_type("application/wasm", ".wasm")

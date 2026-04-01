@@ -241,7 +241,7 @@
 <body>
   <main>
     <h1>EmptyEpsilon Server Admin</h1>
-    <p>Controls the experimental HTTP Lua endpoint on the local server. Start the server with <code>httpserver=8080</code>.</p>
+    <p>Controls the experimental HTTP Lua endpoint on the local server. Start the server with <code>httpserver=8181</code>.</p>
 
     <div class="grid">
       <section class="card">
@@ -348,7 +348,7 @@
     setQrCode(qrAdminPage, linkAdminPage, adminPageUrl);
 
     if (window.location.protocol === "file:") {
-      endpointInput.value = "http://" + defaultHost + ":8080/exec.lua";
+      endpointInput.value = "http://" + defaultHost + ":8181/exec.lua";
     } else {
       endpointInput.value = window.location.origin + "/admin-api/exec.lua";
     }

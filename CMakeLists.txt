@@ -745,6 +745,7 @@ if(EMSCRIPTEN)
         "-sNO_EXIT_RUNTIME=1"
         "-sENVIRONMENT=web"
         "-sMAX_WEBGL_VERSION=2"
+        "-sEXPORTED_RUNTIME_METHODS=ccall"
         "-lidbfs.js"
         "SHELL:--use-preload-cache"
         "SHELL:--indexedDB-name=EmptyEpsilonPreloadCache"

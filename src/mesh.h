@@ -33,6 +33,7 @@ public:
     float greatestDistanceFromCenter(std::vector<MeshVertex>& vertices);
 
     static Mesh* getMesh(const string& filename);
+    static void forgetAllMeshes();
 };
 
 #endif//MESH_H

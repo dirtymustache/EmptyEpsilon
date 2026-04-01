@@ -730,7 +730,21 @@
             ensureFsDirectory(absolutePath.slice(0, slashIndex));
           }
           FS.writeFile(absolutePath, fileEntry.data);
+          if (absolutePath.endsWith(".pack")) {
+            try {
+              if (typeof Module !== "undefined" && typeof Module._browserRegisterPackFile === "function" && typeof Module.ccall === "function") {
+                Module.ccall("browserRegisterPackFile", null, ["string"], [absolutePath]);
+              }
+            } catch (_packErr) {
+              // C++ runtime not yet started during preRun; pack will be found by initResourcePaths()
+            }
+          }
         }
+        try {
+          if (typeof Module !== "undefined" && typeof Module.ccall === "function" && typeof Module._browserBundleMountComplete === "function") {
+            Module.ccall("browserBundleMountComplete", null, [], []);
+          }
+        } catch (_e) {}
         loadedBrowserBundles.set(bundleManifest.bundle_id, bundleManifest.content_hash || "loaded");
         assetTrace.recordBundle(bundleManifest.bundle_id);
       },
@@ -1612,6 +1626,17 @@
         }
         addRunDependency("ee-browser-assets");
         assetLoader.preloadLaunchAssets().then(function() {
+          try {
+            var packsDir = FS.readdir("/packs");
+            var packFiles = packsDir.filter(function(f) { return f !== "." && f !== ".."; });
+            if (packFiles.length > 0) {
+              window.EmptyEpsilonDiag("vfs: /packs has " + packFiles.length + " file(s): " + packFiles.join(", "));
+            } else {
+              window.EmptyEpsilonDiag("vfs: WARNING /packs directory is empty");
+            }
+          } catch (fsErr) {
+            window.EmptyEpsilonDiag("vfs: WARNING /packs directory missing from VFS: " + fsErr);
+          }
           removeRunDependency("ee-browser-assets");
         }).catch(function(error) {
           window.EmptyEpsilonDiag("asset preload failed: " + error);

@@ -51,6 +51,9 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <unordered_map>
+#include "packResourceProvider.h"
+#include "textureManager.h"
+#include "components/rendering.h"
 #endif
 
 glm::vec3 camera_position;
@@ -223,6 +226,24 @@ void notifyBrowserRemoteSessionManifestChanged(const string& manifest_url, const
         if (typeof window.EmptyEpsilonOnRemoteSessionManifestChanged === "function")
             window.EmptyEpsilonOnRemoteSessionManifestChanged(UTF8ToString($0), UTF8ToString($1));
     }, manifest_url.c_str(), revision.c_str());
+}
+
+extern "C" {
+EMSCRIPTEN_KEEPALIVE
+void browserRegisterPackFile(const char* path)
+{
+    PackResourceProvider::registerPackFile(string(path));
+    browserDiag("pack: registered " + string(path));
+}
+
+EMSCRIPTEN_KEEPALIVE
+void browserBundleMountComplete()
+{
+    Mesh::forgetAllMeshes();
+    MeshRenderComponent::resetAllTexturePtrs();
+    textureManager.forgetAllTextures();
+    browserDiag("pack: bundle mounted");
+}
 }
 #endif
 

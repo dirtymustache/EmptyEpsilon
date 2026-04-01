@@ -4,6 +4,7 @@
   "description": "Shared gameplay visuals and SFX required by browser scenarios, excluding music and scenario voice-over packs.",
   "include": [
     { "source": "resources/mesh", "target": "resources/mesh" },
+    { "source": "resources/music", "target": "resources/music" },
     { "source": "resources/planets", "target": "resources/planets" },
     { "source": "resources/sfx", "target": "resources/sfx" },
     { "source": "resources/skybox", "target": "resources/skybox" },

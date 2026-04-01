@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $stateFile = Join-Path $repoRoot "logs\fullstack-state.json"
-$ports = 35666, 35667, 18086, 8080
+$ports = 35666, 35667, 18086, 8181
 $pidSet = [System.Collections.Generic.HashSet[int]]::new()
 
 function Add-Pid {

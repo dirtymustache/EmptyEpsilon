@@ -10,7 +10,7 @@
 #   --server-port PORT      (default: 35666)
 #   --bridge-port PORT      (default: 35667)
 #   --web-port PORT         (default: 18086)
-#   --admin-port PORT       (default: 8080)
+#   --admin-port PORT       (default: 8181)
 #   --no-native-client      skip launching native client
 #   --no-browser            skip opening browser tabs
 set -euo pipefail
@@ -30,7 +30,7 @@ BIND_HOST="127.0.0.1"
 SERVER_PORT=35666
 BRIDGE_PORT=35667
 WEB_PORT=18086
-ADMIN_PORT=8080
+ADMIN_PORT=8181
 NO_NATIVE_CLIENT=0
 NO_BROWSER=0
 

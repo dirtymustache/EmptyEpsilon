@@ -23,11 +23,6 @@ LOOSE_IMAGE_RULES = [
 ]
 
 PACK_IMAGE_RULES = {
-    "Asteroids.pack": [
-        {"pattern": "Astroid_*_d.png", "max_dim": 768},
-        {"pattern": "Astroid_*_n.png", "max_dim": 768},
-        {"pattern": "Astroid_*_s.png", "max_dim": 768},
-    ],
     "msgamedev.pack": [
         {"pattern": "*/AlbedoAO/*.png", "max_dim": 768},
         {"pattern": "*PBRSpecular.png", "max_dim": 768},
