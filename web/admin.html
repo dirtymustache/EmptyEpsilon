@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EmptyEpsilon Server Admin</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #071018;
+      --panel: #101a25;
+      --panel-2: #0c141d;
+      --ink: #d9e5f0;
+      --muted: #8ea2b8;
+      --accent: #71d4ff;
+      --danger: #ff8da1;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background:
+        radial-gradient(circle at top, rgba(40, 100, 150, 0.35), transparent 30%),
+        linear-gradient(180deg, #0a1320 0%, var(--bg) 100%);
+      color: var(--ink);
+      font: 15px/1.45 "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    main {
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+    }
+
+    p {
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      margin-top: 20px;
+    }
+
+    .card {
+      padding: 18px;
+      background: rgba(16, 26, 37, 0.92);
+      border: 1px solid rgba(113, 212, 255, 0.18);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    input, select, textarea, button {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: var(--panel-2);
+      color: var(--ink);
+      padding: 10px 12px;
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 140px;
+      resize: vertical;
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 12px;
+    }
+
+    .scenario-grid {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      margin-top: 10px;
+    }
+
+    .scenario-chip {
+      width: 100%;
+      text-align: left;
+    }
+
+    .scenario-chip.active {
+      color: var(--accent);
+      border-color: rgba(113, 212, 255, 0.75);
+      background: rgba(18, 30, 42, 0.96);
+    }
+
+    button {
+      cursor: pointer;
+      border-color: rgba(113, 212, 255, 0.28);
+      background: rgba(10, 16, 24, 0.96);
+    }
+
+    button:hover {
+      color: var(--accent);
+      border-color: rgba(113, 212, 255, 0.6);
+    }
+
+    button.danger {
+      border-color: rgba(255, 141, 161, 0.34);
+    }
+
+    #status {
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: rgba(10, 16, 24, 0.86);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--muted);
+      white-space: pre-wrap;
+    }
+
+    #server-status {
+      margin-top: 20px;
+      padding: 18px;
+      background: rgba(16, 26, 37, 0.92);
+      border: 1px solid rgba(113, 212, 255, 0.18);
+    }
+
+    #server-status h2 {
+      margin: 0 0 12px;
+    }
+
+    .status-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      margin-bottom: 16px;
+    }
+
+    .status-box {
+      padding: 10px 12px;
+      background: #0a0f15;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .status-box strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    #player-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .player-card {
+      padding: 10px 12px;
+      background: #0a0f15;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .player-card .title {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .player-card .meta {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    code {
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>EmptyEpsilon Server Admin</h1>
+    <p>Controls the experimental HTTP Lua endpoint on the local server. Start the server with <code>httpserver=8080</code>.</p>
+
+    <div class="grid">
+      <section class="card">
+        <label for="admin-endpoint">Admin Endpoint</label>
+        <input id="admin-endpoint" type="text" spellcheck="false">
+
+        <label for="scenario-category" style="margin-top: 14px;">Category</label>
+        <select id="scenario-category"></select>
+
+        <label for="scenario-select" style="margin-top: 14px;">Scenario</label>
+        <select id="scenario-select"></select>
+
+        <label for="scenario-file" style="margin-top: 14px;">Scenario File</label>
+        <input id="scenario-file" type="text" spellcheck="false" autocomplete="off" value="scenario_00_basic.lua">
+
+        <div class="actions">
+          <button id="new-game" type="button">Start Scenario</button>
+          <button id="pause-game" type="button">Pause</button>
+          <button id="unpause-game" type="button">Unpause</button>
+          <button id="shutdown-game" class="danger" type="button">Shutdown</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <label for="lua-code">Custom Lua</label>
+        <textarea id="lua-code" spellcheck="false">setScenario("scenario_00_basic.lua")</textarea>
+        <div class="actions">
+          <button id="run-lua" type="button">Run Lua</button>
+          <button id="clear-lua" type="button">Clear</button>
+        </div>
+      </section>
+    </div>
+
+    <section id="server-status">
+      <h2>Server Status</h2>
+      <div class="status-grid">
+        <div class="status-box"><strong>Server</strong><span id="status-server-name">Unknown</span></div>
+        <div class="status-box"><strong>Scenario</strong><span id="status-scenario">Unknown</span></div>
+        <div class="status-box"><strong>Mission Time</strong><span id="status-mission-time">Unknown</span></div>
+        <div class="status-box"><strong>Game Speed</strong><span id="status-game-speed">Unknown</span></div>
+        <div class="status-box"><strong>Paused</strong><span id="status-paused">Unknown</span></div>
+        <div class="status-box"><strong>Players</strong><span id="status-player-count">0</span></div>
+      </div>
+      <div id="player-list">No player data yet.</div>
+    </section>
+
+    <div id="status">admin page ready</div>
+  </main>
+
+  <script>
+    const defaultHost = window.location.hostname || "127.0.0.1";
+    const endpointInput = document.getElementById("admin-endpoint");
+    const scenarioCategory = document.getElementById("scenario-category");
+    const scenarioSelect = document.getElementById("scenario-select");
+    const scenarioFile = document.getElementById("scenario-file");
+    const luaCode = document.getElementById("lua-code");
+    const statusNode = document.getElementById("status");
+    const statusServerName = document.getElementById("status-server-name");
+    const statusScenario = document.getElementById("status-scenario");
+    const statusMissionTime = document.getElementById("status-mission-time");
+    const statusGameSpeed = document.getElementById("status-game-speed");
+    const statusPaused = document.getElementById("status-paused");
+    const statusPlayerCount = document.getElementById("status-player-count");
+    const playerList = document.getElementById("player-list");
+    let scenarioCatalogue = [];
+
+    if (window.location.protocol === "https:") {
+      endpointInput.value = window.location.origin + "/admin-api/exec.lua";
+    } else {
+      endpointInput.value = "http://" + defaultHost + ":8080/exec.lua";
+    }
+
+    function getScenariosEndpoint() {
+      const execEndpoint = endpointInput.value.trim();
+      if (!execEndpoint) {
+        return "";
+      }
+      return execEndpoint.replace(/\/exec\.lua(?:\?.*)?$/, "/scenarios.js");
+    }
+
+    function renderScenarioOptions(categoryName, selectedFilename) {
+      const category = scenarioCatalogue.find(function(entry) {
+        return entry.name === categoryName;
+      });
+
+      scenarioSelect.innerHTML = "";
+      if (!category) {
+        return;
+      }
+
+      category.scenarios.forEach(function(entry, index) {
+        const option = document.createElement("option");
+        option.value = entry.filename;
+        option.textContent = entry.name;
+        if ((selectedFilename && entry.filename === selectedFilename) || (!selectedFilename && index === 0)) {
+          option.selected = true;
+        }
+        scenarioSelect.appendChild(option);
+      });
+
+      if (scenarioSelect.value) {
+        scenarioFile.value = scenarioSelect.value;
+      }
+    }
+
+    function renderScenarioCategories(selectedFilename) {
+      scenarioCategory.innerHTML = "";
+      scenarioCatalogue.forEach(function(category, index) {
+        const option = document.createElement("option");
+        option.value = category.name;
+        option.textContent = category.name;
+        if (selectedFilename && category.scenarios.some(function(entry) { return entry.filename === selectedFilename; })) {
+          option.selected = true;
+        } else if (!selectedFilename && index === 0) {
+          option.selected = true;
+        }
+        scenarioCategory.appendChild(option);
+      });
+
+      if (scenarioCategory.value) {
+        renderScenarioOptions(scenarioCategory.value, selectedFilename);
+      }
+    }
+
+    function syncScenarioSelectionFromFile() {
+      const filename = scenarioFile.value.trim();
+      for (const category of scenarioCatalogue) {
+        const match = category.scenarios.find(function(entry) {
+          return entry.filename === filename;
+        });
+        if (match) {
+          scenarioCategory.value = category.name;
+          renderScenarioOptions(category.name, filename);
+          return;
+        }
+      }
+    }
+
+    function setStatus(message, isError) {
+      statusNode.textContent = message;
+      statusNode.style.color = isError ? "var(--danger)" : "var(--muted)";
+    }
+
+    function getStatusEndpoint() {
+      const execEndpoint = endpointInput.value.trim();
+      if (!execEndpoint) {
+        return "";
+      }
+      return execEndpoint.replace(/\/exec\.lua(?:\?.*)?$/, "/status.js");
+    }
+
+    function renderPlayer(player) {
+      const positions = (player.positions || [])
+        .map(function(monitor) {
+          return monitor.join(", ");
+        })
+        .filter(function(value) { return value.length > 0; });
+      const roleSummary = positions.length ? positions.join(" | ") : "No station selected";
+      const title = player.name || ("Client " + player.client_id);
+      return [
+        '<div class="player-card">',
+        '<div class="title">' + title + '</div>',
+        '<div class="meta">client_id=' + player.client_id + '</div>',
+        '<div class="meta">' + roleSummary + '</div>',
+        player.ship_id ? '<div class="meta">ship=' + player.ship_id + '</div>' : '',
+        '</div>'
+      ].join("");
+    }
+
+    window.EmptyEpsilonAdminStatus = function(data) {
+      statusServerName.textContent = data.server_name || "Unknown";
+      statusScenario.textContent = data.scenario || "Unknown";
+      statusMissionTime.textContent = data.mission_time || "Unknown";
+      statusGameSpeed.textContent = String(data.game_speed ?? "Unknown");
+      statusPaused.textContent = data.paused ? "Yes" : "No";
+      statusPlayerCount.textContent = String(data.player_count ?? 0);
+
+      if (data.players && data.players.length) {
+        playerList.innerHTML = data.players.map(renderPlayer).join("");
+      } else {
+        playerList.textContent = "No connected players.";
+      }
+    };
+
+    window.EmptyEpsilonAdminScenarios = function(data) {
+      scenarioCatalogue = data.categories || [];
+      renderScenarioCategories(scenarioFile.value.trim());
+    };
+
+    function pollStatus() {
+      const endpoint = getStatusEndpoint();
+      if (!endpoint) {
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = endpoint + "?_ts=" + Date.now();
+      script.async = true;
+      script.onerror = function() {
+        setStatus("Status poll failed for " + endpoint, true);
+      };
+      document.body.appendChild(script);
+      window.setTimeout(function() {
+        script.remove();
+      }, 5000);
+    }
+
+    function pollScenarios() {
+      const endpoint = getScenariosEndpoint();
+      if (!endpoint) {
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = endpoint + "?_ts=" + Date.now();
+      script.async = true;
+      script.onerror = function() {
+        setStatus("Scenario list poll failed for " + endpoint, true);
+      };
+      document.body.appendChild(script);
+      window.setTimeout(function() {
+        script.remove();
+      }, 5000);
+    }
+
+    async function postLua(lua) {
+      const endpoint = endpointInput.value.trim();
+      if (!endpoint) {
+        setStatus("Admin endpoint is empty.", true);
+        return;
+      }
+
+      try {
+        await fetch(endpoint, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "text/plain" },
+          body: lua
+        });
+        setStatus("Sent Lua to " + endpoint + "\\n\\n" + lua, false);
+        window.setTimeout(pollStatus, 500);
+      } catch (error) {
+        setStatus("Request failed: " + error, true);
+      }
+    }
+
+    document.getElementById("new-game").addEventListener("click", function() {
+      postLua('setScenario("' + scenarioFile.value.trim() + '")');
+    });
+
+    document.getElementById("pause-game").addEventListener("click", function() {
+      postLua("pauseGame()");
+    });
+
+    document.getElementById("unpause-game").addEventListener("click", function() {
+      postLua("unpauseGame()");
+    });
+
+    document.getElementById("shutdown-game").addEventListener("click", function() {
+      postLua("shutdownGame()");
+    });
+
+    document.getElementById("run-lua").addEventListener("click", function() {
+      postLua(luaCode.value);
+    });
+
+    document.getElementById("clear-lua").addEventListener("click", function() {
+      luaCode.value = "";
+      luaCode.focus();
+    });
+
+    scenarioCategory.addEventListener("change", function() {
+      renderScenarioOptions(scenarioCategory.value, scenarioFile.value.trim());
+    });
+
+    scenarioSelect.addEventListener("change", function() {
+      scenarioFile.value = scenarioSelect.value;
+    });
+
+    scenarioFile.addEventListener("change", function() {
+      syncScenarioSelectionFromFile();
+    });
+
+    pollScenarios();
+    pollStatus();
+    window.setInterval(pollStatus, 2000);
+  </script>
+</body>
+</html>

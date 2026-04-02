@@ -44,6 +44,21 @@ CrewStationScreen::CrewStationScreen(RenderLayer* render_layer, bool with_main_s
     });
     select_station_button->setPosition(-20, 20, sp::Alignment::TopRight)->setSize(250, 50);
 
+#ifdef __EMSCRIPTEN__
+    if (game_server && PreferencesManager::get("browser_local_session", "") == "1")
+    {
+        auto end_local_session_button = new GuiButton(main_panel, "END_LOCAL_SESSION", tr("End local session"), [this]() {
+            destroy();
+            soundManager->stopMusic();
+            impulse_sound->stop();
+            disconnectFromServer();
+            PreferencesManager::set("browser_local_session", "");
+            returnToMainMenu(getRenderLayer());
+        });
+        end_local_session_button->setPosition(-20, 80, sp::Alignment::TopRight)->setSize(250, 50);
+    }
+#endif
+
     button_strip = new GuiPanel(main_panel, "");
     button_strip->setPosition(-20, 20, sp::Alignment::TopRight)->setSize(250, 50);
     button_strip->hide();

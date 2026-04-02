@@ -1,9 +1,128 @@
 #include "httpScriptAccess.h"
 #include "gameGlobalInfo.h"
+#include "playerInfo.h"
+#include "scenarioInfo.h"
 #include "script.h"
+#include "crewPosition.h"
+#include "multiplayer_server.h"
+#include "engine.h"
 
 #define sOBJECT "_OBJECT_"
 
+namespace {
+string jsonEscape(const string& value)
+{
+    string escaped;
+    for (auto ch : value)
+    {
+        switch(ch)
+        {
+        case '\\': escaped += "\\\\"; break;
+        case '"': escaped += "\\\""; break;
+        case '\n': escaped += "\\n"; break;
+        case '\r': escaped += "\\r"; break;
+        case '\t': escaped += "\\t"; break;
+        default: escaped += ch; break;
+        }
+    }
+    return escaped;
+}
+
+string crewPositionsToJson(const std::vector<CrewPositions>& monitors)
+{
+    string result = "[";
+    bool first_monitor = true;
+    for (const auto& monitor : monitors)
+    {
+        if (!first_monitor)
+            result += ",";
+        first_monitor = false;
+        result += "[";
+        bool first_position = true;
+        auto monitor_copy = monitor;
+        for (auto position : monitor_copy)
+        {
+            if (!first_position)
+                result += ",";
+            first_position = false;
+            result += "\"" + jsonEscape(crewPositionToString(position)) + "\"";
+        }
+        result += "]";
+    }
+    result += "]";
+    return result;
+}
+
+string buildAdminStatusJson()
+{
+    string json = "{";
+    json += "\"server_name\":\"" + jsonEscape(game_server ? game_server->getServerName() : "Server") + "\",";
+    json += "\"scenario\":\"" + jsonEscape(gameGlobalInfo ? gameGlobalInfo->scenario : "") + "\",";
+    json += "\"mission_time\":\"" + jsonEscape(gameGlobalInfo ? gameGlobalInfo->getMissionTime() : "00:00") + "\",";
+    json += "\"elapsed_time\":" + string(gameGlobalInfo ? gameGlobalInfo->elapsed_time : 0.0f, 1) + ",";
+    json += "\"paused\":" + string(engine && engine->getGameSpeed() == 0.0f ? "true" : "false") + ",";
+    json += "\"game_speed\":" + string(engine ? engine->getGameSpeed() : 0.0f, 2) + ",";
+    json += "\"player_count\":" + string(static_cast<unsigned int>(player_info_list.size())) + ",";
+    json += "\"players\":[";
+
+    bool first_player = true;
+    foreach(PlayerInfo, player, player_info_list)
+    {
+        if (!first_player)
+            json += ",";
+        first_player = false;
+        json += "{";
+        json += "\"client_id\":" + string(player->client_id) + ",";
+        json += "\"name\":\"" + jsonEscape(player->name) + "\",";
+        json += "\"ship_id\":\"" + jsonEscape(player->ship ? player->ship.toString() : "") + "\",";
+        json += "\"positions\":" + crewPositionsToJson(player->crew_positions) + ",";
+        json += "\"main_screen\":" + string(player->main_screen) + ",";
+        json += "\"main_screen_control\":" + string(player->main_screen_control);
+        json += "}";
+    }
+
+    json += "]";
+    json += "}";
+    return json;
+}
+
+string buildScenarioListJson()
+{
+    string json = "{";
+    json += "\"categories\":[";
+
+    auto categories = ScenarioInfo::getCategories();
+    bool first_category = true;
+    for (const auto& category : categories)
+    {
+        if (!first_category)
+            json += ",";
+        first_category = false;
+        json += "{";
+        json += "\"name\":\"" + jsonEscape(category) + "\",";
+        json += "\"scenarios\":[";
+
+        bool first_scenario = true;
+        for (const auto& info : ScenarioInfo::getScenarios(category))
+        {
+            if (!first_scenario)
+                json += ",";
+            first_scenario = false;
+            json += "{";
+            json += "\"filename\":\"" + jsonEscape(info.filename) + "\",";
+            json += "\"name\":\"" + jsonEscape(info.name) + "\"";
+            json += "}";
+        }
+
+        json += "]";
+        json += "}";
+    }
+
+    json += "]";
+    json += "}";
+    return json;
+}
+}
 
 EEHttpServer::EEHttpServer(int port, string static_file_path)
 : server(port)
@@ -24,6 +143,14 @@ EEHttpServer::EEHttpServer(int port, string static_file_path)
             output = result.value();
         }
         return output;
+    });
+    server.addURLHandler("/status.js", [](const sp::io::http::Server::Request&) -> string
+    {
+        return "window.EmptyEpsilonAdminStatus && window.EmptyEpsilonAdminStatus(" + buildAdminStatusJson() + ");";
+    });
+    server.addURLHandler("/scenarios.js", [](const sp::io::http::Server::Request&) -> string
+    {
+        return "window.EmptyEpsilonAdminScenarios && window.EmptyEpsilonAdminScenarios(" + buildScenarioListJson() + ");";
     });
     server.addURLHandler("/get.lua", [](const sp::io::http::Server::Request& request) -> string
     {

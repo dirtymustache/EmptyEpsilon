@@ -23,9 +23,23 @@
 #include "gui/gui2_slider.h"
 #include "gui/gui2_togglebutton.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+static void browserDiag(const string& message)
+{
+    EM_ASM({
+        if (typeof window.EmptyEpsilonDiag === "function")
+            window.EmptyEpsilonDiag(UTF8ToString($0));
+    }, message.c_str());
+}
+#endif
+
 SpectatorScreen::SpectatorScreen(RenderLayer* render_layer)
 : GuiCanvas(render_layer)
 {
+#ifdef __EMSCRIPTEN__
+    browserDiag("spectator: constructor");
+#endif
     main_radar = new GuiRadarView(this, "MAIN_RADAR", LONG_RANGE_DISTANCE, nullptr);
     main_radar->setStyle(GuiRadarView::Rectangular)->longRange()->gameMaster()->enableTargetProjections(nullptr)->setAutoCentering(false)->enableCallsigns();
     main_radar->setPosition(0, 0, sp::Alignment::TopLeft)->setSize(GuiElement::GuiSizeMax, GuiElement::GuiSizeMax);
@@ -137,6 +151,13 @@ void SpectatorScreen::toggleUI()
 
 void SpectatorScreen::update(float delta)
 {
+#ifdef __EMSCRIPTEN__
+    if (!first_update_logged)
+    {
+        first_update_logged = true;
+        browserDiag("spectator: first update");
+    }
+#endif
     auto view_position = main_radar->getViewPosition();
     float key_zoom_delta = keys.zoom_in.getValue() - keys.zoom_out.getValue();
     if (key_zoom_delta != 0.0f)

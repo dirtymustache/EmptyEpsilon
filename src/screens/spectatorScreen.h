@@ -22,6 +22,7 @@ private:
     const float LONG_RANGE_DISTANCE = 50000.0f;
     const float SHORT_RANGE_DISTANCE = 10000.0f;
     bool dragging = false;
+    bool first_update_logged = false;
 
     GuiRadarView* main_radar;
 

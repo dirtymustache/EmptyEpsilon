@@ -81,17 +81,19 @@ enum class BasicReplicationRequest {
     flag <<= 1;
 #define BASIC_REPLICATION_VECTOR(FIELD) \
     switch(BRR) { \
-    case BasicReplicationRequest::SendAll: flags |= flag; tmp << target.FIELD.size(); break; \
-    case BasicReplicationRequest::Update: if (target.FIELD.size() != backup->FIELD.size()) { flags |= flag; tmp << target.FIELD.size(); backup->FIELD.resize(target.FIELD.size()); } break; \
-    case BasicReplicationRequest::Receive: if (flags & flag) { size_t size; packet >> size; target.FIELD.resize(size); } break; \
+    case BasicReplicationRequest::SendAll: flags |= flag; tmp << uint32_t(target.FIELD.size()); break; \
+    case BasicReplicationRequest::Update: if (target.FIELD.size() != backup->FIELD.size()) { flags |= flag; tmp << uint32_t(target.FIELD.size()); backup->FIELD.resize(target.FIELD.size()); } break; \
+    case BasicReplicationRequest::Receive: if (flags & flag) { uint32_t size = 0; packet >> size; target.FIELD.resize(size); } break; \
     } \
     flag <<= 1; \
     for(size_t idx=0; (BRR==BasicReplicationRequest::Receive) || idx<target.FIELD.size(); idx++) { \
         uint32_t vector_flags = 0; \
         if (BRR == BasicReplicationRequest::Receive) { \
+            uint32_t vector_index = 0; \
             packet >> vector_flags; \
             if (vector_flags == 0) break; \
-            packet >> idx; \
+            packet >> vector_index; \
+            idx = vector_index; \
             if (idx >= target.FIELD.size()) { LOG(Warning, "Vector replication index out of range..."); break; } \
         } \
         auto vector_target = &target.FIELD[idx]; \
@@ -108,7 +110,7 @@ enum class BasicReplicationRequest {
         vector_flag <<= 1;
 
 #define VECTOR_REPLICATION_END() \
-        if (vector_tmp.getDataSize() > 0) tmp.write(vector_flags, idx, vector_tmp); \
+        if (vector_tmp.getDataSize() > 0) tmp.write(vector_flags, uint32_t(idx), vector_tmp); \
     } \
     if (tmp.getDataSize() > 0) tmp.write(uint32_t(0)); // end of vector update.
 

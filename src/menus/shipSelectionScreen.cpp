@@ -36,6 +36,19 @@
 #include "gui/gui2_textentry.h"
 #include "gui/gui2_togglebutton.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+namespace {
+void browserDiag(const string& message)
+{
+    EM_ASM({
+        if (typeof window.EmptyEpsilonDiag === "function")
+            window.EmptyEpsilonDiag(UTF8ToString($0));
+    }, message.c_str());
+}
+}
+#endif
+
 class PasswordDialog : public GuiOverlay
 {
 public:
@@ -504,12 +517,26 @@ ShipSelectionScreen::ShipSelectionScreen()
 
     if (game_server)
     {
-        // If this is the server, the "back" button goes to the scenario
-        // selection/server creation screen.
-        (new GuiButton(disconnect_row, "DISCONNECT", tr("Scenario selection"), [this]() {
-            destroy();
-            new ServerScenarioSelectionScreen();
-        }))->setSize(300, GuiElement::GuiSizeMax)->setAttribute("alignment", "bottomcenter");
+#ifdef __EMSCRIPTEN__
+        if (PreferencesManager::get("browser_local_session", "") == "1")
+        {
+            (new GuiButton(disconnect_row, "DISCONNECT", tr("End local session"), [this]() {
+                destroy();
+                disconnectFromServer();
+                PreferencesManager::set("browser_local_session", "");
+                returnToMainMenu(getRenderLayer());
+            }))->setSize(300, GuiElement::GuiSizeMax)->setAttribute("alignment", "bottomcenter");
+        }
+        else
+#endif
+        {
+            // If this is the server, the "back" button goes to the scenario
+            // selection/server creation screen.
+            (new GuiButton(disconnect_row, "DISCONNECT", tr("Scenario selection"), [this]() {
+                destroy();
+                new ServerScenarioSelectionScreen();
+            }))->setSize(300, GuiElement::GuiSizeMax)->setAttribute("alignment", "bottomcenter");
+        }
     }
     else
     {
@@ -659,7 +686,113 @@ void ShipSelectionScreen::update(float delta)
     }
 
     right_panel_2_text->setText(player_list);
+
+#ifdef __EMSCRIPTEN__
+    processBrowserAutoJoin();
+#endif
 }
+
+#ifdef __EMSCRIPTEN__
+void ShipSelectionScreen::processBrowserAutoJoin()
+{
+    auto preference = PreferencesManager::get("browser_station", "").lower().strip();
+    if (preference.empty())
+        return;
+
+    if (!browser_auto_join_attempted)
+    {
+        if (my_spaceship)
+        {
+            browserDiag("browser station: ship already assigned");
+        }
+        else
+        {
+            if (player_ship_list->entryCount() < 1)
+            {
+                if (!browser_waiting_for_ship_logged)
+                {
+                    browserDiag("browser station: waiting for a player ship to appear");
+                    browser_waiting_for_ship_logged = true;
+                }
+                return;
+            }
+
+            if (player_ship_list->getSelectionIndex() < 0)
+                player_ship_list->setSelectionIndex(0);
+
+            auto target_ship = player_ship_list->getSelectionValue();
+            browserDiag("browser station: claiming first available ship");
+            joinPlayerShip(target_ship);
+        }
+        browser_auto_join_attempted = true;
+    }
+
+    if (!my_spaceship)
+    {
+        if (!browser_waiting_for_assignment_logged)
+        {
+            browserDiag("browser station: waiting for claimed ship assignment");
+            browser_waiting_for_assignment_logged = true;
+        }
+        return;
+    }
+
+    if (launchBrowserPreferredStation(preference))
+    {
+        PreferencesManager::set("browser_station", "");
+        destroy();
+    }
+}
+
+bool ShipSelectionScreen::launchBrowserPreferredStation(const string& preference)
+{
+    constexpr int monitor_index = 0;
+    clearBrowserMonitorSelection(monitor_index);
+
+    if (preference == "main" || preference == "mainscreen")
+    {
+        browserDiag("browser station: launching mainscreen");
+        my_player_info->commandSetMainScreen(monitor_index, true);
+        my_player_info->spawnUI(monitor_index, getRenderLayer());
+        return true;
+    }
+
+    auto preferred_position = tryParseCrewPosition(preference);
+    if (preferred_position && (!my_spaceship.getComponent<PlayerControl>() || my_spaceship.getComponent<PlayerControl>()->allowed_positions.has(*preferred_position)))
+    {
+        browserDiag("browser station: launching " + preference);
+        my_player_info->commandSetCrewPosition(monitor_index, *preferred_position, true);
+        my_player_info->spawnUI(monitor_index, getRenderLayer());
+        return true;
+    }
+
+    if (auto pc = my_spaceship.getComponent<PlayerControl>())
+    {
+        for (int n = 0; n < static_cast<int>(CrewPosition::MAX); n++)
+        {
+            auto candidate = CrewPosition(n);
+            if (!pc->allowed_positions.has(candidate))
+                continue;
+
+            browserDiag("browser station: fallback to " + crewPositionToString(candidate));
+            my_player_info->commandSetCrewPosition(monitor_index, candidate, true);
+            my_player_info->spawnUI(monitor_index, getRenderLayer());
+            return true;
+        }
+    }
+
+    browserDiag("browser station: no launchable position available");
+    return false;
+}
+
+void ShipSelectionScreen::clearBrowserMonitorSelection(int monitor_index)
+{
+    my_player_info->commandSetMainScreen(monitor_index, false);
+    my_player_info->commandSetMainScreenControl(monitor_index, false);
+    for (int n = 0; n < static_cast<int>(CrewPosition::MAX); n++)
+        my_player_info->commandSetCrewPosition(monitor_index, CrewPosition(n), false);
+}
+#endif
 
 void ShipSelectionScreen::joinPlayerShip(string entity_string)
 {

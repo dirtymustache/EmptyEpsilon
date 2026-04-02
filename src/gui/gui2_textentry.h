@@ -37,6 +37,7 @@ public:
     GuiTextEntry(GuiContainer* owner, string id, string text);
     virtual ~GuiTextEntry();
 
+    virtual void onUpdate() override;
     virtual void onDraw(sp::RenderTarget& renderer) override;
     virtual bool onMouseDown(sp::io::Pointer::Button button, glm::vec2 position, sp::io::Pointer::ID id) override;
     virtual void onMouseDrag(glm::vec2 position, sp::io::Pointer::ID id) override;
@@ -63,6 +64,17 @@ public:
 protected:
     int getTextOffsetForPosition(glm::vec2 position);
     void runChangeCallback();
+
+#ifdef __EMSCRIPTEN__
+    void syncBrowserTextInput();
+    void applyBrowserText(string text);
+
+    string browser_synced_text;
+    sp::Rect browser_synced_rect{0, 0, 0, 0};
+    int browser_synced_cursor = -1;
+    bool browser_sync_dirty = true;
+    bool browser_applying_text = false;
+#endif
 };
 
 #endif//GUI2_TEXTENTRY_H

@@ -16,7 +16,9 @@
 #include "gui/theme.h"
 #include "menus/mainMenus.h"
 #include "menus/autoConnectScreen.h"
+#include "menus/joinServerMenu.h"
 #include "menus/shipSelectionScreen.h"
+#include "screens/spectatorScreen.h"
 #include "main.h"
 #include "epsilonServer.h"
 #include "httpScriptAccess.h"
@@ -44,6 +46,10 @@
 #include "shaderRegistry.h"
 #include "glObjects.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 glm::vec3 camera_position;
 float camera_yaw;
 float camera_pitch;
@@ -64,6 +70,15 @@ GUI_REGISTER_LAYOUT("verticalbottom", GuiLayoutVerticalBottom);
 GUI_REGISTER_LAYOUT("horizontal", GuiLayoutHorizontal);
 GUI_REGISTER_LAYOUT("horizontalright", GuiLayoutHorizontalRight);
 
+#ifdef __EMSCRIPTEN__
+static void browserDiag(const string& message)
+{
+    EM_ASM({
+        if (typeof window.EmptyEpsilonDiag === "function")
+            window.EmptyEpsilonDiag(UTF8ToString($0));
+    }, message.c_str());
+}
+#endif
 
 int runProxyServer()
 {
@@ -102,10 +117,16 @@ int main(int argc, char** argv)
 #endif
 
     LOG(Info, "Starting...");
+#ifdef __EMSCRIPTEN__
+    browserDiag("main: startup");
+#endif
     new Engine();
     initSystemsAndComponents();
 
     auto configuration_path = initConfiguration(argc, argv);
+#ifdef __EMSCRIPTEN__
+    browserDiag("main: config path = " + configuration_path);
+#endif
 
     if (PreferencesManager::get("headless") == "")
     {
@@ -141,10 +162,18 @@ int main(int argc, char** argv)
     }
 
     initResourcePaths();
+#ifdef __EMSCRIPTEN__
+    browserDiag("main: resource paths initialized");
+#endif
     textureManager.setDefaultSmooth(true);
     textureManager.setDefaultRepeated(true);
     i18n::load("locale/main." + PreferencesManager::get("language", "en") + ".po");
     keys.init();
+#ifdef __EMSCRIPTEN__
+    keys.voice_all.addKey("virtual:250");
+    keys.voice_ship.addKey("virtual:251");
+    keys.escape.addKey("virtual:252");
+#endif
     if (PreferencesManager::get("httpserver").toInt() != 0)
     {
         int port_nr = PreferencesManager::get("httpserver").toInt();
@@ -176,6 +205,9 @@ int main(int argc, char** argv)
     {
         if (!createDisplayWindows())
             return 1;
+#ifdef __EMSCRIPTEN__
+        browserDiag("main: display windows created");
+#endif
     } else {
         new StdinLuaConsole();
     }
@@ -205,7 +237,13 @@ int main(int argc, char** argv)
     // Since there is no way to access it (yet) via a touchscreen, compile out.
 #if !defined(ANDROID)
     // Set up voice chat and key bindings.
-    if (PreferencesManager::get("voice_chat_enabled", "0") == "1")
+    const auto voice_chat_default =
+#ifdef __EMSCRIPTEN__
+        "1";
+#else
+        "0";
+#endif
+    if (PreferencesManager::get("voice_chat_enabled", voice_chat_default) == "1")
     {
         NetworkAudioRecorder* nar = new NetworkAudioRecorder();
         nar->addKeyActivation(&keys.voice_all, 0);
@@ -214,7 +252,12 @@ int main(int argc, char** argv)
 #endif
 
     P<HardwareController> hardware_controller = new HardwareController();
+#if defined(__EMSCRIPTEN__)
+    (void)hardware_controller;
+    LOG(Info, "Browser build: skipping external hardware configuration.");
+#else
     hardware_controller->loadConfiguration(configuration_path + "/hardware.ini");
+#endif
 
 #if WITH_DISCORD
     {
@@ -233,6 +276,7 @@ int main(int argc, char** argv)
 
     string tutorial = PreferencesManager::get("tutorial");   // use "00_all.lua" for all tutorials
     string server_scenario = PreferencesManager::get("server_scenario");
+    string browser_connect = PreferencesManager::get("browser_connect");
 
     if (!tutorial.empty())
     {
@@ -241,7 +285,39 @@ int main(int argc, char** argv)
         new TutorialGame(repeat_tutorial, tutorial);
     }
     else if (server_scenario.empty())
-        returnToMainMenu(defaultRenderLayer);
+    {
+#ifdef __EMSCRIPTEN__
+        if (!browser_connect.empty())
+        {
+            LOG(Info, "Starting browser websocket bridge connect flow: ", browser_connect);
+            PreferencesManager::set("browser_bridge_url", browser_connect);
+            browserDiag("main: browser bridge connect requested");
+
+            ServerScanner::ServerInfo info;
+            info.type = ServerScanner::ServerType::Manual;
+            info.name = browser_connect;
+            new JoinServerScreen(info);
+            browserDiag("main: join server screen created");
+        }
+        else if (PreferencesManager::get("browser_bootstrap", "1") != "0")
+        {
+            LOG(Info, "Starting browser bootstrap scenario in spectator mode.");
+            browserDiag("main: browser bootstrap enabled");
+            new EpsilonServer(defaultServerPort, false);
+            if (!gameGlobalInfo)
+                return 1;
+            browserDiag("main: local server created");
+            gameGlobalInfo->startScenario(PreferencesManager::get("browser_scenario", "scenario_00_basic.lua"), loadScenarioSettingsFromPrefs());
+            browserDiag("main: scenario started");
+            new SpectatorScreen(defaultRenderLayer);
+            browserDiag("main: spectator screen created");
+        }
+        else
+#endif
+        {
+            returnToMainMenu(defaultRenderLayer);
+        }
+    }
     else
     {
         // server_scenario creates a server running the specified scenario
@@ -297,8 +373,7 @@ int main(int argc, char** argv)
 
     if (PreferencesManager::get("headless") == "")
     {
-        PreferencesManager::save(configuration_path + "/options.ini");
-        sp::io::Keybinding::saveKeybindings(configuration_path + "/keybindings.json");
+        saveConfiguration(configuration_path);
     }
     windows.clear();
     delete engine;
@@ -308,6 +383,9 @@ int main(int argc, char** argv)
 
 void returnToMainMenu(RenderLayer* render_layer)
 {
+#ifdef __EMSCRIPTEN__
+    PreferencesManager::set("browser_local_session", "");
+#endif
     if (render_layer != defaultRenderLayer) // Handle secondary monitors
     {
         returnToShipSelection(render_layer);

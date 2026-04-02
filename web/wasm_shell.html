@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EmptyEpsilon Web</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #05070b;
+      --panel: rgba(11, 16, 24, 0.88);
+      --ink: #d8e1ec;
+      --muted: #8ea0b5;
+      --accent: #6fd3ff;
+      --danger: #ff6f91;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      background:
+        radial-gradient(circle at top, rgba(49, 94, 157, 0.35), transparent 35%),
+        linear-gradient(180deg, #08111c 0%, var(--bg) 100%);
+      color: var(--ink);
+      font: 14px/1.4 "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+    }
+
+    body {
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    #hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 14px;
+      background: var(--panel);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+    }
+
+    #title {
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    #hud-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    #hud-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    #hud-actions button {
+      padding: 8px 12px;
+      border: 1px solid rgba(111, 211, 255, 0.25);
+      background: rgba(11, 16, 24, 0.92);
+      color: var(--ink);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    #hud-actions button:hover {
+      border-color: rgba(111, 211, 255, 0.55);
+      color: var(--accent);
+    }
+
+    #hud-actions button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+      border-color: rgba(255, 255, 255, 0.14);
+      color: var(--muted);
+    }
+
+    #hud-actions button.active {
+      border-color: rgba(111, 211, 255, 0.75);
+      background: rgba(31, 73, 94, 0.92);
+      color: var(--accent);
+    }
+
+    #toast {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      padding: 10px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(11, 16, 24, 0.96);
+      color: var(--ink);
+      font-size: 13px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 140ms ease;
+      z-index: 20;
+      max-width: min(80vw, 520px);
+      text-align: center;
+    }
+
+    #toast.visible {
+      opacity: 1;
+    }
+
+    #status {
+      flex: 1 1 auto;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #canvas-wrap {
+      position: relative;
+      min-height: 0;
+    }
+
+    #canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+      background: #000;
+    }
+
+    #overlay {
+      display: none;
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: min(420px, calc(100vw - 32px));
+      max-height: calc(100% - 32px);
+      overflow: auto;
+      box-sizing: border-box;
+      padding: 16px;
+      background: rgba(11, 16, 24, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(10px);
+      z-index: 15;
+      pointer-events: none;
+    }
+
+    #overlay strong {
+      color: var(--accent);
+      pointer-events: auto;
+    }
+
+    #controls {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+      pointer-events: auto;
+    }
+
+    #controls label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    #controls input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(14, 20, 31, 0.96);
+      color: var(--ink);
+      outline: none;
+    }
+
+    #controls select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(14, 20, 31, 0.96);
+      color: var(--ink);
+      outline: none;
+    }
+
+    #controls input:focus {
+      border-color: rgba(111, 211, 255, 0.5);
+    }
+
+    #controls select:focus {
+      border-color: rgba(111, 211, 255, 0.5);
+    }
+
+    #actions {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    #actions button {
+      padding: 10px 12px;
+      border: 1px solid rgba(111, 211, 255, 0.25);
+      background: rgba(11, 16, 24, 0.92);
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    #actions button:hover {
+      border-color: rgba(111, 211, 255, 0.55);
+      color: var(--accent);
+    }
+
+    #hint {
+      color: var(--muted);
+      font-size: 12px;
+      pointer-events: auto;
+    }
+
+    #diag {
+      margin-top: 10px;
+      max-height: 180px;
+      overflow: auto;
+      color: var(--muted);
+      font: 12px/1.35 Consolas, "SFMono-Regular", Menlo, monospace;
+      white-space: pre-wrap;
+      pointer-events: auto;
+    }
+
+    #diag.hidden {
+      display: none;
+    }
+
+    #overlay.error {
+      border-color: rgba(255, 111, 145, 0.45);
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div id="hud-left">
+      <div id="title">EmptyEpsilon WebAssembly Build</div>
+      <div id="hud-actions">
+        <button id="ptt-server" type="button">Talk To Server</button>
+        <button id="ptt-ship" type="button">Talk To Ship</button>
+      </div>
+    </div>
+    <div id="status">Initializing...</div>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="canvas" tabindex="0"></canvas>
+    <div id="toast" aria-live="polite"></div>
+    <div id="overlay">
+      <strong>Browser milestone:</strong> local spectator and bridge-connected multiplayer client slices are both available.
+      <div id="controls">
+        <label>
+          Bridge URL
+          <input id="bridge-url" type="text" value="" spellcheck="false">
+        </label>
+        <label>
+          Player Name
+          <input id="player-name" type="text" value="web_user" spellcheck="false">
+        </label>
+        <label>
+          Bridge Station
+          <select id="station-select">
+            <option value="relay" selected>Relay</option>
+            <option value="science">Science</option>
+            <option value="helms">Helms</option>
+            <option value="weapons">Weapons</option>
+            <option value="engineering">Engineering</option>
+            <option value="operations">Operations</option>
+            <option value="tactical">Tactical</option>
+            <option value="singlepilot">Single Pilot</option>
+            <option value="mainscreen">Main Screen</option>
+          </select>
+        </label>
+        <div id="actions">
+          <button id="launch-spectator" type="button">Local Spectator</button>
+          <button id="launch-menu" type="button">Main Menu</button>
+          <button id="launch-bridge" type="button">Bridge Connect</button>
+        </div>
+        <div id="actions">
+          <button id="test-audio" type="button">Test Audio</button>
+        </div>
+        <div id="hint">URL params still work: <code>?bridge=ws://&lt;this-host&gt;:35667</code>, <code>?station=relay</code>, <code>?mode=menu</code>, <code>?username=web_user</code>.</div>
+        <div id="audio-state" style="margin-top: 6px; color: var(--muted); font-size: 12px;">Audio: waiting for runtime</div>
+      </div>
+      <div id="diag">browser shell ready</div>
+    </div>
+  </div>
+  <script>
+    const statusNode = document.getElementById("status");
+    const overlayNode = document.getElementById("overlay");
+    const diagNode = document.getElementById("diag");
+    const canvas = document.getElementById("canvas");
+    const bridgeInput = document.getElementById("bridge-url");
+    const playerNameInput = document.getElementById("player-name");
+    const stationSelect = document.getElementById("station-select");
+    const audioStateNode = document.getElementById("audio-state");
+    const pttServerButton = document.getElementById("ptt-server");
+    const pttShipButton = document.getElementById("ptt-ship");
+    const toastNode = document.getElementById("toast");
+    let runtimeReady = false;
+    let microphoneState = "unknown";
+    let microphoneUnavailableReason = "";
+    let toastHideTimer = 0;
+    const params = new URLSearchParams(window.location.search);
+    const moduleArgs = [];
+    const diagEnabled = params.get("diag") === "1";
+    const diagLines = [];
+    const maxDiagLines = 120;
+    const defaultBridgeHost = window.location.hostname || "127.0.0.1";
+    const defaultBridgeScheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const defaultBridgeUrl = defaultBridgeScheme + "://" + defaultBridgeHost + ":35667";
+
+    function sanitizeProfileName(value) {
+      return String(value || "").trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+    }
+
+    const requestedProfile = params.get("profile") || params.get("username") || "";
+    const profileName = sanitizeProfileName(requestedProfile);
+    const activeProfileLabel = profileName || "default";
+    const configMountPoint = profileName ? "/config-" + profileName : "/config";
+
+    function appendArg(key, value) {
+      if (!value) {
+        return;
+      }
+      moduleArgs.push(key + "=" + value);
+    }
+
+    if (params.has("bridge")) {
+      appendArg("browser_bootstrap", "0");
+      appendArg("browser_connect", params.get("bridge"));
+    } else if (params.has("bootstrap")) {
+      appendArg("browser_bootstrap", params.get("bootstrap"));
+    } else {
+      appendArg("browser_bootstrap", "0");
+    }
+    if (params.has("scenario")) {
+      appendArg("browser_scenario", params.get("scenario"));
+    }
+    if (params.has("username")) {
+      appendArg("username", params.get("username"));
+    }
+    if (profileName) {
+      appendArg("browser_profile", profileName);
+    }
+    if (params.has("station")) {
+      appendArg("browser_station", params.get("station"));
+    }
+
+    if (params.has("bridge")) {
+      bridgeInput.value = params.get("bridge");
+    } else {
+      bridgeInput.value = defaultBridgeUrl;
+    }
+    if (params.has("username")) {
+      playerNameInput.value = params.get("username");
+    }
+    if (params.has("station")) {
+      stationSelect.value = params.get("station");
+    }
+
+    function launchWithParams(nextParams) {
+      const url = new URL(window.location.href);
+      url.search = nextParams.toString();
+      window.location.href = url.toString();
+    }
+
+    document.getElementById("launch-spectator").addEventListener("click", function() {
+      const nextParams = new URLSearchParams();
+      const username = playerNameInput.value.trim();
+      if (username) {
+        nextParams.set("username", username);
+      }
+      launchWithParams(nextParams);
+    });
+
+    document.getElementById("launch-menu").addEventListener("click", function() {
+      const nextParams = new URLSearchParams();
+      nextParams.set("mode", "menu");
+      const username = playerNameInput.value.trim();
+      if (username) {
+        nextParams.set("username", username);
+      }
+      launchWithParams(nextParams);
+    });
+
+    document.getElementById("launch-bridge").addEventListener("click", function() {
+      const nextParams = new URLSearchParams();
+      nextParams.set("bridge", bridgeInput.value.trim() || defaultBridgeUrl);
+      nextParams.set("station", stationSelect.value);
+      const username = playerNameInput.value.trim();
+      if (username) {
+        nextParams.set("username", username);
+      }
+      launchWithParams(nextParams);
+    });
+
+    function setStatus(message, isError) {
+      const suffix = " [profile " + activeProfileLabel + "]";
+      statusNode.textContent = (message || "") + suffix;
+      overlayNode.className = isError ? "error" : "";
+    }
+
+    function focusGameCanvas() {
+      if (document.activeElement !== canvas) {
+        canvas.focus({ preventScroll: true });
+      }
+    }
+
+    function forwardEscapeKey(isDown) {
+      if (!runtimeReady || !window.Module || typeof Module._ee_browser_set_escape_key !== "function") {
+        return;
+      }
+      Module._ee_browser_set_escape_key(isDown ? 1 : 0);
+    }
+
+    function setVoiceKey(targetIdentifier, isDown) {
+      if (!runtimeReady || !window.Module || typeof Module._ee_browser_set_voice_key !== "function") {
+        return;
+      }
+      Module._ee_browser_set_voice_key(targetIdentifier, isDown ? 1 : 0);
+    }
+
+    function updatePushToTalkButtons() {
+      const disabled = microphoneState === "unavailable";
+      const unavailableTitle = microphoneUnavailableReason === "secure-context"
+        ? "Microphone access requires HTTPS or localhost in this browser"
+        : "Microphone capture is not available in this browser";
+      const title = disabled
+        ? unavailableTitle
+        : (microphoneState === "granted"
+          ? "Hold to transmit voice"
+          : (microphoneState === "denied"
+            ? "Microphone access is blocked in browser/site settings"
+            : "Enable the microphone for this site, then hold to talk"));
+      for (const button of [pttServerButton, pttShipButton]) {
+        button.disabled = disabled;
+        button.title = title;
+      }
+    }
+
+    function showToast(message) {
+      if (!toastNode) {
+        return;
+      }
+      toastNode.textContent = message;
+      toastNode.classList.add("visible");
+      if (toastHideTimer) {
+        window.clearTimeout(toastHideTimer);
+      }
+      toastHideTimer = window.setTimeout(function() {
+        toastNode.classList.remove("visible");
+      }, 2200);
+    }
+
+    function bindPushToTalkButton(button, targetIdentifier, label) {
+      let active = false;
+      const activate = async function(event) {
+        event.preventDefault();
+        if (active) {
+          return;
+        }
+        if (microphoneState === "denied") {
+          setStatus("Microphone blocked in browser/site settings", true);
+          showToast("Microphone is blocked for this site. Re-enable it in browser settings.");
+          return;
+        }
+        if (microphoneState !== "granted") {
+          const granted = await requestBrowserMicrophone();
+          if (!granted) {
+            if (microphoneState === "denied") {
+              setStatus("Microphone blocked in browser/site settings", true);
+              showToast("Microphone is blocked for this site. Re-enable it in browser settings.");
+            } else if (microphoneState === "unavailable") {
+              if (microphoneUnavailableReason === "secure-context") {
+                setStatus("Microphone access requires HTTPS or localhost", true);
+                showToast("Microphone access requires HTTPS or localhost on iPad Safari.");
+              } else {
+                setStatus("Microphone capture unavailable in this browser", true);
+                showToast("This browser does not have microphone capture available.");
+              }
+            } else {
+              setStatus("Microphone access needed for push-to-talk", true);
+              showToast("Enable the microphone for this site, then try push-to-talk again.");
+            }
+            return;
+          }
+        }
+        if (microphoneState !== "granted") {
+          setStatus("Microphone access needed for push-to-talk", true);
+          showToast("Enable the microphone for this site, then try push-to-talk again.");
+          return;
+        }
+        tryResumeBrowserAudio();
+        ensureEngineAudioStarted();
+        active = true;
+        setVoiceKey(targetIdentifier, true);
+        button.classList.add("active");
+        setStatus("Push-to-talk: " + label, false);
+      };
+      const deactivate = function(event) {
+        if (event) {
+          event.preventDefault();
+        }
+        if (!active) {
+          return;
+        }
+        active = false;
+        setVoiceKey(targetIdentifier, false);
+        button.classList.remove("active");
+        if (runtimeReady) {
+          setStatus("Runtime initialized", false);
+        }
+      };
+      if (window.PointerEvent) {
+        button.addEventListener("pointerdown", activate);
+        button.addEventListener("pointerup", deactivate);
+        button.addEventListener("pointercancel", deactivate);
+        button.addEventListener("lostpointercapture", deactivate);
+        button.addEventListener("pointerleave", deactivate);
+      } else {
+        button.addEventListener("touchstart", activate, { passive: false });
+        button.addEventListener("touchend", deactivate, { passive: false });
+        button.addEventListener("touchcancel", deactivate, { passive: false });
+        button.addEventListener("mousedown", activate);
+        button.addEventListener("mouseup", deactivate);
+        button.addEventListener("mouseleave", deactivate);
+      }
+    }
+
+    function updateAudioState() {
+      if (!window.Module || !Module.SDL2 || !Module.SDL2.audioContext) {
+        audioStateNode.textContent = "Audio: no browser audio context yet";
+        return;
+      }
+      audioStateNode.textContent = "Audio: context " + Module.SDL2.audioContext.state;
+    }
+
+    function shellControlHasFocus() {
+      const active = document.activeElement;
+      return active instanceof HTMLInputElement ||
+        active instanceof HTMLSelectElement ||
+        active instanceof HTMLTextAreaElement;
+    }
+
+    function isShellControlTarget(target) {
+      return target instanceof HTMLInputElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLButtonElement ||
+        (target instanceof HTMLElement && !!target.closest("label"));
+    }
+
+    for (const control of [bridgeInput, playerNameInput, stationSelect]) {
+      control.addEventListener("focus", function() {
+        setStatus("Editing browser launch settings", false);
+      });
+      control.addEventListener("blur", function() {
+        if (!shellControlHasFocus() && runtimeReady) {
+          setStatus("Runtime initialized", false);
+        }
+      });
+    }
+
+    for (const type of ["keydown", "keypress", "keyup"]) {
+      document.addEventListener(type, function(event) {
+        const target = event.target;
+        if (
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLSelectElement ||
+          target instanceof HTMLTextAreaElement
+        ) {
+          event.stopImmediatePropagation();
+        }
+      }, true);
+    }
+
+    document.addEventListener("keydown", function(event) {
+      if (event.key !== "Escape" || shellControlHasFocus()) {
+        return;
+      }
+      forwardEscapeKey(true);
+      event.preventDefault();
+    }, true);
+
+    document.addEventListener("keyup", function(event) {
+      if (event.key !== "Escape" || shellControlHasFocus()) {
+        return;
+      }
+      forwardEscapeKey(false);
+      event.preventDefault();
+    }, true);
+
+    function renderDiag() {
+      if (!diagEnabled) {
+        return;
+      }
+      diagNode.textContent = diagLines.join("\n");
+      diagNode.scrollTop = diagNode.scrollHeight;
+    }
+
+    function pushDiagLine(line) {
+      if (!diagEnabled) {
+        return;
+      }
+      diagLines.push(line);
+      while (diagLines.length > maxDiagLines) {
+        diagLines.shift();
+      }
+      renderDiag();
+    }
+
+    function flushPersistentState() {
+      if (!runtimeReady || !window.Module || typeof Module._ee_browser_save_configuration !== "function") {
+        return;
+      }
+      try {
+        Module._ee_browser_save_configuration();
+      } catch (error) {
+        window.EmptyEpsilonDiag("idbfs: pagehide save skipped");
+      }
+    }
+
+    function tryResumeBrowserAudio() {
+      if (!window.Module || !Module.SDL2 || !Module.SDL2.audioContext) {
+        updateAudioState();
+        return;
+      }
+      const ctx = Module.SDL2.audioContext;
+      if (ctx.state === "suspended") {
+        ctx.resume().then(function() {
+          window.EmptyEpsilonDiag("audio: resumed browser audio context");
+          updateAudioState();
+        }).catch(function(error) {
+          window.EmptyEpsilonDiag("audio: resume failed: " + error);
+          updateAudioState();
+        });
+      } else {
+        updateAudioState();
+      }
+    }
+
+    function ensureEngineAudioStarted() {
+      if (!runtimeReady || !window.Module || typeof Module._ee_browser_ensure_audio_started !== "function") {
+        return false;
+      }
+      try {
+        return !!Module._ee_browser_ensure_audio_started();
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function setMicrophoneState(nextState) {
+      microphoneState = nextState;
+      if (nextState !== "unavailable") {
+        microphoneUnavailableReason = "";
+      }
+      updatePushToTalkButtons();
+    }
+
+    function requestBrowserMicrophone() {
+      if (microphoneState === "granted") {
+        return Promise.resolve(true);
+      }
+      if (!window.isSecureContext) {
+        microphoneUnavailableReason = "secure-context";
+        setMicrophoneState("unavailable");
+        return Promise.resolve(false);
+      }
+      const mediaDevices = navigator.mediaDevices;
+      if (!mediaDevices || typeof mediaDevices.getUserMedia !== "function") {
+        setMicrophoneState("unavailable");
+        return Promise.resolve(false);
+      }
+      return mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+        setMicrophoneState("granted");
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
+        return true;
+      }).catch(function(error) {
+        if (error && error.name === "NotFoundError") {
+          setMicrophoneState("unavailable");
+        } else if (error && (error.name === "NotAllowedError" || error.name === "SecurityError")) {
+          setMicrophoneState("denied");
+        } else {
+          setMicrophoneState("unknown");
+        }
+        return false;
+      });
+    }
+
+    function watchMicrophonePermission() {
+      if (!navigator.permissions || typeof navigator.permissions.query !== "function") {
+        updatePushToTalkButtons();
+        return;
+      }
+      navigator.permissions.query({ name: "microphone" }).then(function(permissionStatus) {
+        const syncState = function() {
+          if (permissionStatus.state === "granted") {
+            setMicrophoneState("granted");
+          } else if (permissionStatus.state === "denied") {
+            setMicrophoneState("denied");
+          } else {
+            setMicrophoneState("unknown");
+          }
+        };
+        syncState();
+        permissionStatus.onchange = syncState;
+      }).catch(function() {
+        updatePushToTalkButtons();
+      });
+    }
+
+    window.EmptyEpsilonDiag = function(message) {
+      const line = String(message || "");
+      if (!diagEnabled) {
+        if (line.startsWith("startup error:")) {
+          console.error("[EE wasm] " + line);
+        }
+        return;
+      }
+      if (line.startsWith("ws:")) {
+        return;
+      }
+      pushDiagLine(line);
+      console.log("[EE wasm] " + line);
+    };
+
+    if (!diagEnabled) {
+      diagNode.classList.add("hidden");
+    } else {
+      pushDiagLine("browser shell ready");
+      pushDiagLine("browser profile: " + activeProfileLabel + " -> " + configMountPoint);
+    }
+    updatePushToTalkButtons();
+    watchMicrophonePermission();
+    if (!window.isSecureContext) {
+      microphoneUnavailableReason = "secure-context";
+      setMicrophoneState("unavailable");
+      window.EmptyEpsilonDiag("mic: unavailable because page is not a secure context");
+    }
+
+    document.getElementById("test-audio").addEventListener("click", function() {
+      tryResumeBrowserAudio();
+      ensureEngineAudioStarted();
+      if (runtimeReady && window.Module && typeof Module._ee_browser_play_test_sound === "function") {
+        Module._ee_browser_play_test_sound();
+        setStatus("Triggered test sound", false);
+      } else {
+        setStatus("Runtime not ready for audio test", true);
+      }
+    });
+
+    var Module = {
+      arguments: moduleArgs,
+      canvas,
+      preRun: [function() {
+        if (typeof FS === "undefined" || typeof IDBFS === "undefined") {
+          window.EmptyEpsilonDiag("idbfs: unavailable in runtime");
+          return;
+        }
+        try {
+          FS.mkdir(configMountPoint);
+        } catch (error) {
+          if (!/File exists/.test(String(error))) {
+            throw error;
+          }
+        }
+        FS.mount(IDBFS, {}, configMountPoint);
+        addRunDependency("ee-idbfs-load");
+        window.EmptyEpsilonDiag("idbfs: syncing from browser storage at " + configMountPoint);
+        FS.syncfs(true, function(err) {
+          if (err) {
+            window.EmptyEpsilonDiag("idbfs: initial sync failed");
+          } else {
+            window.EmptyEpsilonDiag("idbfs: initial sync complete");
+          }
+          removeRunDependency("ee-idbfs-load");
+        });
+      }],
+      setStatus: function(message) {
+        setStatus(message || "Running", false);
+      },
+      print: function(message) {
+        console.log(message);
+      },
+      printErr: function(message) {
+        console.error(message);
+      },
+      onRuntimeInitialized: function() {
+        runtimeReady = true;
+        setStatus("Runtime initialized", false);
+        window.EmptyEpsilonDiag("runtime initialized");
+        window.EmptyEpsilonDiag("browser profile: " + activeProfileLabel + " -> " + configMountPoint);
+        updateAudioState();
+        focusGameCanvas();
+        if (moduleArgs.length) {
+          window.EmptyEpsilonDiag("argv: " + moduleArgs.join(" "));
+        }
+      },
+      monitorRunDependencies: function(left) {
+        if (left > 0) {
+          setStatus("Downloading assets (" + left + " remaining)", false);
+        } else {
+          setStatus("Starting", false);
+        }
+      }
+    };
+
+    window.addEventListener("error", function(event) {
+      window.EmptyEpsilonDiag("startup error: " + event.message);
+      setStatus("Startup error: " + event.message, true);
+    });
+    for (const eventName of ["pointerdown", "touchstart", "mousedown", "keydown"]) {
+      window.addEventListener(eventName, function(event) {
+        tryResumeBrowserAudio();
+        ensureEngineAudioStarted();
+        if (!shellControlHasFocus() && !isShellControlTarget(event.target)) {
+          focusGameCanvas();
+        }
+      }, { passive: true });
+    }
+    window.addEventListener("pageshow", function() {
+      if (runtimeReady && !shellControlHasFocus()) {
+        focusGameCanvas();
+      }
+    });
+    bindPushToTalkButton(pttServerButton, 0, "server");
+    bindPushToTalkButton(pttShipButton, 1, "ship");
+    window.addEventListener("pagehide", flushPersistentState);
+    document.addEventListener("visibilitychange", function() {
+      if (document.visibilityState === "hidden") {
+        flushPersistentState();
+      }
+    });
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>

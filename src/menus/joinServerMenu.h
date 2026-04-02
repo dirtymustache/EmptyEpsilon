@@ -19,6 +19,7 @@ public:
 private:
     ServerScanner::ServerInfo target;
     GuiLabel* status_label;
+    GuiLabel* browser_info_label = nullptr;
     GuiPanel* password_entry_box;
     GuiTextEntry* password_entry = nullptr;
     bool password_focused = false;

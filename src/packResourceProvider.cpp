@@ -88,6 +88,11 @@ void PackResourceProvider::addPackResourcesForDirectory(const string directory)
 
     constexpr auto traversal_options{ fs::directory_options::follow_directory_symlink | fs::directory_options::skip_permission_denied };
     std::error_code error_code{};
+    if (!fs::exists(root, error_code) || !fs::is_directory(root, error_code))
+    {
+        LOG(INFO) << "Skipping pack scan for missing directory " << directory;
+        return;
+    }
     for (const auto& entry : fs::directory_iterator(root, traversal_options, error_code))
     {
         if (!error_code)

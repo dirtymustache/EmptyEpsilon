@@ -52,6 +52,14 @@ else()
     option(APK_WITH_PACKS "Build APK with pack files (3D assets)" ON)
 endif()
 
+if(EMSCRIPTEN)
+    set(WITH_DISCORD OFF CACHE BOOL "Build with Discord support" FORCE)
+    set(EE_WASM_ASSET_PROFILE "minimal" CACHE STRING "Asset profile for Emscripten builds")
+    set_property(CACHE EE_WASM_ASSET_PROFILE PROPERTY STRINGS bridge minimal full)
+    set(EE_WASM_ASSET_DIR "${PROJECT_BINARY_DIR}/wasm_assets" CACHE PATH "Staging directory for Emscripten preloaded assets")
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+endif()
+
 message(STATUS "EmptyEpsilon Version = ${PROJECT_VERSION}")
 
 # Enable colored output with Ninja
@@ -683,7 +691,7 @@ endif()
 target_compile_definitions(${PROJECT_NAME}
     PUBLIC
         # Set RESOURCE_BASE_DIR on Unix so the built binary is able to find resources
-        $<$<AND:$<BOOL:${UNIX}>,$<NOT:$<BOOL:${STEAMSDK}>>>:RESOURCE_BASE_DIR="${CMAKE_INSTALL_FULL_DATADIR}/emptyepsilon/">
+        $<$<AND:$<BOOL:${UNIX}>,$<NOT:$<BOOL:${STEAMSDK}>>,$<NOT:$<BOOL:${EMSCRIPTEN}>>>:RESOURCE_BASE_DIR="${CMAKE_INSTALL_FULL_DATADIR}/emptyepsilon/">
 )
 
 target_include_directories(${PROJECT_NAME}
@@ -713,6 +721,47 @@ set_target_properties(${PROJECT_NAME}
     PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/osx/MacOSXBundleInfo.plist.in
         MACOSX_BUNDLE_ICON_FILE "${PROJECT_NAME}.icns")
+
+if(EMSCRIPTEN)
+    set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html")
+    set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY LINK_DEPENDS
+        "${CMAKE_SOURCE_DIR}/web/wasm_shell.html"
+    )
+
+    add_custom_target(prepare_wasm_assets
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/prepare_wasm_assets.py --source ${CMAKE_SOURCE_DIR} --output ${EE_WASM_ASSET_DIR} --profile ${EE_WASM_ASSET_PROFILE}
+        BYPRODUCTS "${EE_WASM_ASSET_DIR}/.profile-${EE_WASM_ASSET_PROFILE}"
+        COMMENT "Staging Emscripten assets (${EE_WASM_ASSET_PROFILE})"
+        VERBATIM
+    )
+    add_dependencies(${PROJECT_NAME} prepare_wasm_assets)
+
+    target_link_options(${PROJECT_NAME} PRIVATE
+        "-sUSE_SDL=2"
+        "-sASSERTIONS=1"
+        "-sALLOW_MEMORY_GROWTH=1"
+        "-sNO_EXIT_RUNTIME=1"
+        "-sENVIRONMENT=web"
+        "-sMAX_WEBGL_VERSION=2"
+        "-lidbfs.js"
+        "SHELL:--use-preload-cache"
+        "SHELL:--indexedDB-name=EmptyEpsilonPreloadCache"
+        "SHELL:--shell-file ${CMAKE_SOURCE_DIR}/web/wasm_shell.html"
+        "SHELL:--preload-file ${EE_WASM_ASSET_DIR}/resources@/resources"
+    )
+
+    if(NOT EE_WASM_ASSET_PROFILE STREQUAL "bridge")
+        target_link_options(${PROJECT_NAME} PRIVATE
+            "SHELL:--preload-file ${EE_WASM_ASSET_DIR}/scripts@/scripts"
+        )
+    endif()
+
+    if(EE_WASM_ASSET_PROFILE STREQUAL "full")
+        target_link_options(${PROJECT_NAME} PRIVATE
+            "SHELL:--preload-file ${EE_WASM_ASSET_DIR}/packs@/packs"
+        )
+    endif()
+endif()
 
 include(InstallRequiredSystemLibraries)
 

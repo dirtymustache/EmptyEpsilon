@@ -22,6 +22,14 @@ class ShipSelectionScreen : public GuiCanvas, public Updatable
 {
 private:
     void joinPlayerShip(string entity_string);
+#ifdef __EMSCRIPTEN__
+    void processBrowserAutoJoin();
+    bool launchBrowserPreferredStation(const string& preference);
+    void clearBrowserMonitorSelection(int monitor_index);
+    bool browser_auto_join_attempted = false;
+    bool browser_waiting_for_ship_logged = false;
+    bool browser_waiting_for_assignment_logged = false;
+#endif
 
     GuiElement* container;
     GuiElement* left_container;
