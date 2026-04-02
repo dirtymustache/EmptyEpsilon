@@ -20,22 +20,6 @@ static void browserDiag(const string& message)
     }, message.c_str());
 }
 
-EM_JS(float, browserTouchUiScale, (), {
-    const coarsePointer = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
-    const touchCapable = coarsePointer || (navigator.maxTouchPoints || 0) > 0;
-    if (!touchCapable) {
-        return 1.0;
-    }
-
-    const shortestSide = Math.min(window.innerWidth || 0, window.innerHeight || 0);
-    if (shortestSide > 0 && shortestSide <= 430) {
-        return 0.40;
-    }
-    if (shortestSide > 0 && shortestSide <= 820) {
-        return 0.62;
-    }
-    return 0.82;
-});
 #endif
 
 bool createDisplayWindows()
@@ -71,17 +55,13 @@ bool createDisplayWindows()
     }
 #endif
 
+#ifdef __EMSCRIPTEN__
+    // Browser fullscreen should be handled by the shell page rather than SDL's
+    // desktop-style fullscreen modes, which can distort the in-page canvas.
+    fullscreen = Window::Mode::Window;
+#endif
     windows.push_back(new Window({width, height}, fullscreen, warpPostProcessor, fsaa));
     window_render_layers.push_back(defaultRenderLayer);
-#ifdef __EMSCRIPTEN__
-    const float touch_ui_scale = browserTouchUiScale();
-    if (touch_ui_scale > 0.0f && touch_ui_scale < 0.999f)
-    {
-        width = std::max(480, int(width * touch_ui_scale));
-        height = std::max(360, int(height * touch_ui_scale));
-        browserDiag("display: touch ui scale active");
-    }
-#endif
 
 #ifdef __EMSCRIPTEN__
     browserDiag("display: primary window created");
