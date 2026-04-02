@@ -174,6 +174,8 @@ int main(int argc, char** argv)
     keys.voice_all.addKey("virtual:250");
     keys.voice_ship.addKey("virtual:251");
     keys.escape.addKey("virtual:252");
+    keys.help.addKey("virtual:253");
+    keys.next_station.addKey("virtual:254");
 #endif
     if (PreferencesManager::get("httpserver").toInt() != 0)
     {
