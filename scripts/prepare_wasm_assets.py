@@ -12,12 +12,9 @@ import struct
 import subprocess
 from pathlib import Path
 
-
 ASSET_MANIFEST_DIR = "asset_manifests"
 BUNDLE_MAGIC = b"EEBNDL1\x00"
 BUNDLE_VERSION = 1
-
-
 def copy_tree(source: Path, target: Path, ignore=None) -> None:
     if not source.exists():
         return

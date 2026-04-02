@@ -130,6 +130,17 @@ void PackResourceProvider::addPackResourcesForDirectory(const string directory)
         if (typeof window.EmptyEpsilonDiag === "function")
             window.EmptyEpsilonDiag("pack scan: found " + $0 + " pack(s) in " + UTF8ToString($1));
     }, found, directory.c_str());
+        {
+            string full = stripped + "/" + name;
+            registerPackFile(full);
+            ++found;
+        }
+    }
+    closedir(dir);
+    EM_ASM({
+        if (typeof window.EmptyEpsilonDiag === "function")
+            window.EmptyEpsilonDiag("pack scan: found " + $0 + " pack(s) in " + UTF8ToString($1));
+    }, found, directory.c_str());
 #elif !defined(ANDROID)
     namespace fs = std::filesystem;
     const fs::path root{ directory.data() };

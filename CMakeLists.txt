@@ -54,8 +54,6 @@ endif()
 
 if(EMSCRIPTEN)
     set(WITH_DISCORD OFF CACHE BOOL "Build with Discord support" FORCE)
-    set(EE_WASM_ASSET_PROFILE "minimal" CACHE STRING "Asset profile for Emscripten builds")
-    set_property(CACHE EE_WASM_ASSET_PROFILE PROPERTY STRINGS bridge minimal full)
     set(EE_WASM_ASSET_DIR "${PROJECT_BINARY_DIR}/wasm_assets" CACHE PATH "Staging directory for Emscripten preloaded assets")
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
 endif()
@@ -731,9 +729,8 @@ if(EMSCRIPTEN)
     configure_file(${CMAKE_SOURCE_DIR}/web/admin.html ${CMAKE_BINARY_DIR}/admin.html COPYONLY)
 
     add_custom_target(prepare_wasm_assets
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/prepare_wasm_assets.py --source ${CMAKE_SOURCE_DIR} --output ${EE_WASM_ASSET_DIR} --profile ${EE_WASM_ASSET_PROFILE}
-        BYPRODUCTS "${EE_WASM_ASSET_DIR}/.profile-${EE_WASM_ASSET_PROFILE}"
-        COMMENT "Staging Emscripten assets (${EE_WASM_ASSET_PROFILE})"
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/prepare_wasm_assets.py --source ${CMAKE_SOURCE_DIR} --output ${EE_WASM_ASSET_DIR}
+        COMMENT "Staging Emscripten assets"
         VERBATIM
     )
     add_dependencies(${PROJECT_NAME} prepare_wasm_assets)
@@ -751,19 +748,9 @@ if(EMSCRIPTEN)
         "SHELL:--indexedDB-name=EmptyEpsilonPreloadCache"
         "SHELL:--shell-file ${CMAKE_SOURCE_DIR}/web/wasm_shell.html"
         "SHELL:--preload-file ${EE_WASM_ASSET_DIR}/resources@/resources"
+        "SHELL:--preload-file ${EE_WASM_ASSET_DIR}/scripts@/scripts"
+        "SHELL:--preload-file ${EE_WASM_ASSET_DIR}/packs@/packs"
     )
-
-    if(NOT EE_WASM_ASSET_PROFILE STREQUAL "bridge")
-        target_link_options(${PROJECT_NAME} PRIVATE
-            "SHELL:--preload-file ${EE_WASM_ASSET_DIR}/scripts@/scripts"
-        )
-    endif()
-
-    if(EE_WASM_ASSET_PROFILE STREQUAL "full")
-        target_link_options(${PROJECT_NAME} PRIVATE
-            "SHELL:--preload-file ${EE_WASM_ASSET_DIR}/packs@/packs"
-        )
-    endif()
 endif()
 
 include(InstallRequiredSystemLibraries)
