@@ -294,7 +294,7 @@
         <div id="actions">
           <button id="test-audio" type="button">Test Audio</button>
         </div>
-        <div id="hint">URL params still work: <code>?bridge=ws://&lt;this-host&gt;:35667</code>, <code>?station=relay</code>, <code>?mode=menu</code>, <code>?username=web_user</code>.</div>
+        <div id="hint">URL params still work: <code>?bridge=wss://&lt;this-host&gt;/bridge/</code>, <code>?station=relay</code>, <code>?mode=menu</code>, <code>?username=web_user</code>.</div>
         <div id="audio-state" style="margin-top: 6px; color: var(--muted); font-size: 12px;">Audio: waiting for runtime</div>
       </div>
       <div id="diag">browser shell ready</div>
@@ -327,7 +327,11 @@
     const maxDiagLines = 120;
     const defaultBridgeHost = window.location.hostname || "127.0.0.1";
     const defaultBridgeScheme = window.location.protocol === "https:" ? "wss" : "ws";
-    const defaultBridgeUrl = defaultBridgeScheme + "://" + defaultBridgeHost + ":35667";
+    const explicitPort = window.location.port || "";
+    const isLikelyLocalDev = explicitPort && explicitPort !== "80" && explicitPort !== "443";
+    const defaultBridgeUrl = isLikelyLocalDev
+      ? defaultBridgeScheme + "://" + defaultBridgeHost + ":35667"
+      : defaultBridgeScheme + "://" + window.location.host + "/bridge/";
 
     function sanitizeProfileName(value) {
       return String(value || "").trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");

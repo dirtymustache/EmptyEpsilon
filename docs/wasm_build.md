@@ -15,36 +15,11 @@ From the EmptyEpsilon repo root:
 ./scripts/build_wasm.sh
 ```
 
-This defaults to the `minimal` browser asset profile, which stages:
+This now stages the full runtime asset set by default:
 
-- `resources/` without the heavyweight `audio/` and `music/` folders
+- all `resources/`
 - all `scripts/`
-- no `packs/`
-
-For a smaller bridge/station smoke-test build, use:
-
-```bash
-EE_WASM_ASSET_PROFILE=bridge ./scripts/build_wasm.sh
-```
-
-This stages the browser bridge path and first station-screen assets:
-
-- `resources/gui/`
-- `resources/locale/`
-- `resources/cursors/`
-- `resources/radar/`
-- `resources/shaders/`
-- `resources/sfx/`
-- a few logo images
-- shared radar/station textures such as `waypoint.png`, `redicule.png`, and `noise.png`
-- no `scripts/`
-- no `packs/`
-
-To build the heavier preload set instead:
-
-```bash
-EE_WASM_ASSET_PROFILE=full ./scripts/build_wasm.sh
-```
+- all `packs/`
 
 This configures an Emscripten build in `build-wasm/` and produces:
 
@@ -60,8 +35,7 @@ This configures an Emscripten build in `build-wasm/` and produces:
 emcmake cmake -S . -B build-wasm -G Ninja \
   -DSERIOUS_PROTON_DIR=../SeriousProton \
   -DWITH_DISCORD=OFF \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DEE_WASM_ASSET_PROFILE=minimal
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 cmake --build build-wasm --target EmptyEpsilon
 ```
@@ -91,7 +65,7 @@ http://localhost:8000/EmptyEpsilon.html?bridge=ws://127.0.0.1:35667
 
 Optional query parameters:
 
-- `bridge=ws://host:port` or `wss://host:port` to open the browser bridge join flow
+- `bridge=ws://host:port`, `wss://host:port`, or a same-origin proxied path such as `wss://example.com/bridge/` to open the browser bridge join flow
 - `station=relay|science|helms|weapons|engineering|operations|tactical|singlepilot|mainscreen` to request a browser auto-join station after bridge connection
 - `mode=menu` to skip local spectator bootstrap and open the in-game main menu
 - `bootstrap=0|1` to disable or force the local spectator bootstrap
@@ -121,8 +95,9 @@ That gives the browser client a local websocket endpoint such as:
 ws://127.0.0.1:35667
 ```
 
-This bridge is only a local prototype. It forwards websocket binary messages to a native
-EmptyEpsilon TCP server and is not hardened for production use.
+This bridge is still intentionally minimal. It forwards websocket binary messages to a native
+EmptyEpsilon TCP server. If you want to put it behind a reverse proxy later, a same-origin path
+such as `/bridge/` works well for browser clients.
 
 ## Optional HTTP Server Control
 
@@ -151,14 +126,10 @@ can be overridden if needed.
 
 ## Current Browser Behavior
 
-- The browser build boots directly into a local scenario spectator slice.
+- The browser build preloads the full current runtime asset set, including `packs/`.
 - The wasm shell can optionally open the websocket bridge client path directly with `?bridge=...`.
 - The wasm shell can request a preferred bridge station with `?station=relay` and auto-claim the first available player ship.
 - The wasm shell can also launch into the main menu with `?mode=menu`.
-- The `minimal` profile currently produces a much smaller `.data` bundle than the original full preload.
-- The `bridge` profile is intended for multiplayer smoke tests and first station-screen validation, while keeping the preload much smaller than the spectator-oriented `minimal` profile.
-- Headless browser verification now reaches real spectator rendering, not just the shell canvas.
 - Browser multiplayer can now reach the ship-selection flow of a native server through the websocket bridge prototype.
 - Browser multiplayer still depends on a websocket bridge and is not LAN/master-server compatible yet.
 - Config and keybindings now persist through IDBFS-backed `/config` storage.
-- Browser startup uses a socketless local server path for the first milestone instead of native TCP/UDP listeners.
