@@ -26,10 +26,15 @@ $wasmHtml = Join-Path $repoRoot "build-wasm\EmptyEpsilon.html"
 $stateFile = Join-Path $repoRoot "logs\fullstack-state.json"
 $logDir = Join-Path $repoRoot ("logs\fullstack-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
 
-$candidateDllPaths = @("C:\Users\mrwil\.conda\envs\facedancer\Library\bin")
+$candidateDllPaths = @()
 if ($env:CONDA_PREFIX) {
     $candidateDllPaths += (Join-Path $env:CONDA_PREFIX "Library\bin")
 }
+$candidateDllPaths += @(
+    (Join-Path $repoRoot "build-win-msvc"),
+    (Join-Path $repoRoot "build-win-msvc\Release"),
+    (Join-Path $repoRoot "build-win-msvc\RelWithDebInfo")
+)
 $candidateDllPaths = $candidateDllPaths | Where-Object { $_ -and (Test-Path $_) }
 
 $dllPath = $candidateDllPaths | Select-Object -First 1
@@ -44,7 +49,7 @@ if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
     throw "python was not found on PATH."
 }
 if (-not $dllPath) {
-    throw "Could not find the SDL2/Freetype DLL directory. Expected a Conda env with Library\bin."
+    throw "Could not find a DLL directory for the native Windows build. Set CONDA_PREFIX or ensure the build output directory contains the required runtime DLLs."
 }
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
