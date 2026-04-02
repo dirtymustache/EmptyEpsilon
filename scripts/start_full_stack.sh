@@ -101,6 +101,7 @@ python3 "$REPO_ROOT/scripts/serve_wasm.py" \
     --host "$BIND_HOST" \
     --port "$WEB_PORT" \
     --directory "$BUILD_WASM_DIR" \
+    --extra-static-root "$REPO_ROOT/web" \
     --proxy-admin-base "http://127.0.0.1:${ADMIN_PORT}" \
     >"$LOG_DIR/serve.out.log" 2>"$LOG_DIR/serve.err.log" &
 WEB_PID=$!
