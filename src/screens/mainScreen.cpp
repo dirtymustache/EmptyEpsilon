@@ -18,9 +18,26 @@
 #include "screenComponents/impulseSound.h"
 
 #include "gui/gui2_panel.h"
+#include "gui/gui2_button.h"
 #include "gui/gui2_overlay.h"
 
 #include <i18n.h>
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
+namespace
+{
+bool shouldShowChangeRoleButton()
+{
+#ifdef __EMSCRIPTEN__
+    return false;
+#else
+    return !engine->getObject("mouseRenderer");
+#endif
+}
+}
 
 ScreenMainScreen::ScreenMainScreen(RenderLayer* render_layer)
 : GuiCanvas(render_layer)
@@ -29,6 +46,15 @@ ScreenMainScreen::ScreenMainScreen(RenderLayer* render_layer)
 
     viewport = new GuiViewportMainScreen(this, "VIEWPORT");
     viewport->setPosition(0, 0, sp::Alignment::TopLeft)->setSize(GuiElement::GuiSizeMax, GuiElement::GuiSizeMax);
+
+    change_role_button = new GuiButton(this, "CHANGE_ROLE_BUTTON", tr("button", "Back to Ship Selection"), [this]() {
+        soundManager->stopMusic();
+        impulse_sound->stop();
+        destroy();
+        returnToShipSelection(getRenderLayer());
+    });
+    change_role_button->setPosition(-20, 20, sp::Alignment::TopRight)->setSize(250, 50);
+    change_role_button->setVisible(shouldShowChangeRoleButton());
 
     main_screen_radar = new GuiRadarView(viewport, "VIEWPORT_RADAR", nullptr);
     main_screen_radar->setStyle(GuiRadarView::CircularMasked)->setSize(200, 200)->setPosition(-20, 20, sp::Alignment::TopRight);

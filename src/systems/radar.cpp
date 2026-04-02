@@ -4,6 +4,10 @@
 #include "components/faction.h"
 #include "components/scanning.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 int RadarRenderSystem::current_flags;
 float RadarRenderSystem::current_scale;
 float RadarRenderSystem::current_rotation_offset;
@@ -11,6 +15,32 @@ glm::vec2 RadarRenderSystem::radar_screen_center;
 glm::vec2 RadarRenderSystem::view_position;
 sp::Bitset RadarRenderSystem::visible_objects;
 std::vector<RadarRenderSystem::Handler> RadarRenderSystem::handlers;
+
+namespace
+{
+bool isIpadBrowser()
+{
+#ifdef __EMSCRIPTEN__
+    static int cached = -1;
+    if (cached == -1)
+    {
+        const char* script_result = emscripten_run_script_string(
+            "(function(){"
+            "var ua = navigator.userAgent || '';"
+            "var touchMac = /Macintosh/.test(ua) && ((navigator.maxTouchPoints || 0) > 1);"
+            "var ipad = /iPad/.test(ua) || touchMac;"
+            "return ipad ? '1' : '0';"
+            "})()"
+        );
+        cached = (script_result && string{script_result} == "1") ? 1 : 0;
+    }
+    return cached == 1;
+#else
+    return false;
+#endif
+}
+
+}
 
 
 void BasicRadarRendering::renderOnRadar(sp::RenderTarget& renderer, sp::ecs::Entity entity, glm::vec2 screen_position, float scale, float rotation, RadarTrace& trace)
@@ -52,6 +82,12 @@ void BasicRadarRendering::renderOnRadar(sp::RenderTarget& renderer, sp::ecs::Ent
         default:
             break;
         }
+    }
+
+    if (isIpadBrowser())
+    {
+        renderer.fillCircle(screen_position, std::max(size * 0.5f, 3.0f), color);
+        return;
     }
 
     if ((trace.flags & RadarTrace::BlendAdd) && (trace.flags & RadarTrace::Rotate))
