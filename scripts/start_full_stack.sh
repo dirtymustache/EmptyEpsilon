@@ -76,12 +76,14 @@ WEB_URL="http://${BIND_HOST}:${WEB_PORT}/EmptyEpsilon.html?bridge=ws://${BIND_HO
 ADMIN_URL="http://${BIND_HOST}:${WEB_PORT}/admin.html"
 
 echo "Starting native server..."
-"$NATIVE_EXE" \
-    headless=1 \
-    server_scenario="$SCENARIO" \
-    server_port="$SERVER_PORT" \
-    httpserver="$ADMIN_PORT" \
-    >"$LOG_DIR/server.out.log" 2>"$LOG_DIR/server.err.log" &
+(
+    cd "$REPO_ROOT"
+    "$NATIVE_EXE" \
+        headless=1 \
+        server_scenario="$SCENARIO" \
+        server_port="$SERVER_PORT" \
+        httpserver="$ADMIN_PORT"
+) >"$LOG_DIR/server.out.log" 2>"$LOG_DIR/server.err.log" &
 SERVER_PID=$!
 
 echo "Starting WebSocket bridge..."
@@ -108,12 +110,14 @@ sleep 2
 CLIENT_PID=""
 if [[ "$NO_NATIVE_CLIENT" -eq 0 ]]; then
     echo "Starting native client..."
-    "$NATIVE_EXE" \
-        "autoconnect=$NATIVE_STATION" \
-        "autoconnect_address=127.0.0.1:${SERVER_PORT}" \
-        autoconnectship=solo \
-        "username=$NATIVE_USERNAME" \
-        >"$LOG_DIR/client.out.log" 2>"$LOG_DIR/client.err.log" &
+    (
+        cd "$REPO_ROOT"
+        "$NATIVE_EXE" \
+            "autoconnect=$NATIVE_STATION" \
+            "autoconnect_address=127.0.0.1:${SERVER_PORT}" \
+            autoconnectship=solo \
+            "username=$NATIVE_USERNAME"
+    ) >"$LOG_DIR/client.out.log" 2>"$LOG_DIR/client.err.log" &
     CLIENT_PID=$!
 fi
 

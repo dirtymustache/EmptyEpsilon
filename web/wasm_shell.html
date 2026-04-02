@@ -589,13 +589,73 @@
       let current = "";
       for (const segment of segments) {
         current += "/" + segment;
+        let stat = null;
         try {
-          FS.mkdir(current);
-        } catch (error) {
-          if (!/File exists/.test(String(error))) {
-            throw error;
-          }
+          stat = FS.stat(current);
+        } catch (_error) {
+          stat = null;
         }
+        if (stat) {
+          if (!FS.isDir(stat.mode)) {
+            throw new Error("Expected directory at " + current);
+          }
+          continue;
+        }
+        FS.mkdir(current);
+      }
+    }
+
+    function removeFsPathRecursive(absolutePath) {
+      let stat = null;
+      try {
+        stat = FS.stat(absolutePath);
+      } catch (_error) {
+        return;
+      }
+      if (FS.isDir(stat.mode)) {
+        const children = FS.readdir(absolutePath).filter(function(name) {
+          return name !== "." && name !== "..";
+        });
+        for (const child of children) {
+          removeFsPathRecursive(absolutePath.replace(/\/+$/, "") + "/" + child);
+        }
+        FS.rmdir(absolutePath);
+        return;
+      }
+      FS.unlink(absolutePath);
+    }
+
+    function writeBundleFile(absolutePath, data) {
+      try {
+        const stat = FS.stat(absolutePath);
+        if (FS.isDir(stat.mode)) {
+          removeFsPathRecursive(absolutePath);
+        } else {
+          FS.unlink(absolutePath);
+        }
+      } catch (_error) {
+      }
+      FS.writeFile(absolutePath, data);
+    }
+
+    function delayMs(milliseconds) {
+      return new Promise(function(resolve) {
+        window.setTimeout(resolve, milliseconds);
+      });
+    }
+
+    async function waitForFsPath(absolutePath, timeoutMs) {
+      const deadline = Date.now() + Math.max(0, timeoutMs || 0);
+      while (true) {
+        try {
+          FS.stat(absolutePath);
+          return;
+        } catch (_error) {
+        }
+        if (Date.now() >= deadline) {
+          throw new Error("Timed out waiting for " + absolutePath);
+        }
+        await delayMs(25);
       }
     }
 
@@ -729,7 +789,7 @@
           if (slashIndex > 0) {
             ensureFsDirectory(absolutePath.slice(0, slashIndex));
           }
-          FS.writeFile(absolutePath, fileEntry.data);
+          writeBundleFile(absolutePath, fileEntry.data);
           if (absolutePath.endsWith(".pack")) {
             try {
               if (typeof Module !== "undefined" && typeof Module._browserRegisterPackFile === "function" && typeof Module.ccall === "function") {
@@ -773,12 +833,33 @@
         if (!params.has("bridge")) {
           return;
         }
-        setOverlayVisible(true);
+        await waitForFsPath("/resources/gui/default.theme.txt", 10000);
+        window.EmptyEpsilonDiag("base data ready: /resources/gui/default.theme.txt");
         const sessionManifest = await this.fetchJsonWithFallback([defaultSessionManifestUrl]);
         if (!sessionManifest || !sessionManifest.scenario_manifest) {
           throw new Error("Remote session manifest missing scenario_manifest");
         }
         await this.loadScenarioManifestObject(sessionManifest.scenario_manifest, sessionManifest.scenario_file || "remote scenario");
+      },
+      async preloadLaunchAssetsWithRetry() {
+        const maxAttempts = 3;
+        let lastError = null;
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          try {
+            window.EmptyEpsilonDiag("asset preload attempt " + attempt + "/" + maxAttempts);
+            await this.preloadLaunchAssets();
+            window.EmptyEpsilonDiag("asset preload succeeded on attempt " + attempt);
+            return;
+          } catch (error) {
+            lastError = error;
+            window.EmptyEpsilonDiag("asset preload attempt " + attempt + " failed: " + error);
+            if (attempt >= maxAttempts) {
+              break;
+            }
+            await delayMs(250 * attempt);
+          }
+        }
+        throw lastError || new Error("Asset preload failed");
       },
       requestScenarioAssets(scenarioFilename, localSession) {
         const state = this.ensureScenarioRequestState(scenarioFilename);
@@ -1598,6 +1679,32 @@
       });
     });
 
+    function startBridgeAssetPreloadAfterRuntime() {
+      if (!params.has("bridge")) {
+        return;
+      }
+      assetLoader.preloadLaunchAssetsWithRetry().then(function() {
+        try {
+          var packsDir = FS.readdir("/packs");
+          var packFiles = packsDir.filter(function(f) { return f !== "." && f !== ".."; });
+          if (packFiles.length > 0) {
+            window.EmptyEpsilonDiag("vfs: /packs has " + packFiles.length + " file(s): " + packFiles.join(", "));
+          } else {
+            window.EmptyEpsilonDiag("vfs: WARNING /packs directory is empty");
+          }
+        } catch (fsErr) {
+          window.EmptyEpsilonDiag("vfs: WARNING /packs directory missing from VFS: " + fsErr);
+        }
+        if (!diagEnabled) {
+          setOverlayVisible(false);
+        }
+      }).catch(function(error) {
+        window.EmptyEpsilonDiag("asset preload failed: " + error);
+        setOverlayVisible(true);
+        setStatus("Scenario asset preload failed: " + error, true);
+      });
+    }
+
     var Module = {
       arguments: moduleArgs,
       canvas,
@@ -1606,11 +1713,21 @@
           window.EmptyEpsilonDiag("idbfs: unavailable in runtime");
         } else {
           try {
-            FS.mkdir(configMountPoint);
-          } catch (error) {
-            if (!/File exists/.test(String(error))) {
-              throw error;
+            var configStat = null;
+            try {
+              configStat = FS.stat(configMountPoint);
+            } catch (_error) {
+              configStat = null;
             }
+            if (configStat) {
+              if (!FS.isDir(configStat.mode)) {
+                throw new Error("Expected config mount directory at " + configMountPoint);
+              }
+            } else {
+              FS.mkdir(configMountPoint);
+            }
+          } catch (error) {
+            throw error;
           }
           FS.mount(IDBFS, {}, configMountPoint);
           addRunDependency("ee-idbfs-load");
@@ -1624,26 +1741,6 @@
             removeRunDependency("ee-idbfs-load");
           });
         }
-        addRunDependency("ee-browser-assets");
-        assetLoader.preloadLaunchAssets().then(function() {
-          try {
-            var packsDir = FS.readdir("/packs");
-            var packFiles = packsDir.filter(function(f) { return f !== "." && f !== ".."; });
-            if (packFiles.length > 0) {
-              window.EmptyEpsilonDiag("vfs: /packs has " + packFiles.length + " file(s): " + packFiles.join(", "));
-            } else {
-              window.EmptyEpsilonDiag("vfs: WARNING /packs directory is empty");
-            }
-          } catch (fsErr) {
-            window.EmptyEpsilonDiag("vfs: WARNING /packs directory missing from VFS: " + fsErr);
-          }
-          removeRunDependency("ee-browser-assets");
-        }).catch(function(error) {
-          window.EmptyEpsilonDiag("asset preload failed: " + error);
-          setOverlayVisible(true);
-          setStatus("Scenario asset preload failed: " + error, true);
-          removeRunDependency("ee-browser-assets");
-        });
       }],
       setStatus: function(message) {
         setStatus(message || "Running", false);
@@ -1669,6 +1766,7 @@
         if (moduleArgs.length) {
           window.EmptyEpsilonDiag("argv: " + moduleArgs.join(" "));
         }
+        startBridgeAssetPreloadAfterRuntime();
       },
       monitorRunDependencies: function(left) {
         if (left > 0) {
