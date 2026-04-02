@@ -22,3 +22,13 @@ void returnToMainMenu(RenderLayer*);
 void returnToShipSelection(RenderLayer*);
 void returnToOptionMenu(OptionsMenu::ReturnTo return_to=OptionsMenu::ReturnTo::Main);
 std::unordered_map<string, string> loadScenarioSettingsFromPrefs();
+
+#ifdef __EMSCRIPTEN__
+void requestBrowserScenarioAssets(const string& scenario_filename, bool local_session);
+bool browserScenarioAssetsReady(const string& scenario_filename);
+bool browserScenarioAssetsFailed(const string& scenario_filename);
+string browserScenarioAssetsError(const string& scenario_filename);
+string browserScenarioAssetsStatus(const string& scenario_filename);
+void clearBrowserScenarioAssetRequest(const string& scenario_filename);
+void notifyBrowserRemoteSessionManifestChanged(const string& manifest_url, const string& revision);
+#endif

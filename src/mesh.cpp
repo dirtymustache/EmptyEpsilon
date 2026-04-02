@@ -1,5 +1,6 @@
 #include <graphics/opengl.h>
 #include <unordered_map>
+#include <cmath>
 #include <SDL_endian.h>
 #include <meshoptimizer.h>
 #include <glm/gtx/norm.hpp>
@@ -341,12 +342,27 @@ Mesh* Mesh::getMesh(const string& filename)
             glm::vec2 deltaUV1 = uv1 - uv0;
             glm::vec2 deltaUV2 = uv2 - uv0;
 
-            float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+            const float determinant = deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y;
+            glm::vec3 tangent{};
+            if (std::abs(determinant) > 1e-6f)
+            {
+                const float f = 1.0f / determinant;
+                tangent = glm::vec3(
+                        f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x),
+                        f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y),
+                        f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z));
+            }
 
-            auto tangent = glm::vec3(
-                    f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x),
-                    f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y),
-                    f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z));
+            // Some pack meshes contain triangles with degenerate UVs. Fall back to a
+            // stable tangent so normal-mapped materials still render in WebGL.
+            if (!std::isfinite(tangent.x) || !std::isfinite(tangent.y) || !std::isfinite(tangent.z) || glm::length2(tangent) < 1e-8f)
+            {
+                const auto normal = glm::vec3(mesh_vertices[idx+0].normal[0], mesh_vertices[idx+0].normal[1], mesh_vertices[idx+0].normal[2]);
+                tangent = glm::cross(normal, glm::vec3{0.f, 0.f, 1.f});
+                if (glm::length2(tangent) < 1e-8f)
+                    tangent = glm::cross(normal, glm::vec3{0.f, 1.f, 0.f});
+            }
+            tangent = glm::normalize(tangent);
 
             for(int n=0; n<3; n++) {
                 mesh_vertices[idx+n].tangent[0] = tangent.x;
@@ -362,4 +378,9 @@ Mesh* Mesh::getMesh(const string& filename)
 
 
     return ret;
+}
+
+void Mesh::forgetAllMeshes()
+{
+    meshMap.clear();
 }

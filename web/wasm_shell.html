@@ -191,12 +191,151 @@
       outline: none;
     }
 
-    #controls input:focus {
+    #controls input:focus,
+    #controls select:focus {
       border-color: rgba(111, 211, 255, 0.5);
     }
 
-    #controls select:focus {
-      border-color: rgba(111, 211, 255, 0.5);
+    /* Session list */
+    #session-list {
+      display: grid;
+      gap: 6px;
+    }
+
+    .session-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      background: rgba(14, 20, 31, 0.8);
+      cursor: pointer;
+      transition: border-color 80ms;
+    }
+
+    .session-option:hover {
+      border-color: rgba(111, 211, 255, 0.35);
+    }
+
+    .session-option.selected {
+      border-color: rgba(111, 211, 255, 0.65);
+      background: rgba(20, 50, 75, 0.85);
+    }
+
+    .session-option input[type="radio"] {
+      width: auto;
+      margin-top: 3px;
+      flex-shrink: 0;
+      accent-color: var(--accent);
+    }
+
+    .session-label {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .session-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .session-desc {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .session-count {
+      margin-left: auto;
+      flex-shrink: 0;
+      font-size: 11px;
+      color: var(--accent);
+      padding-top: 3px;
+    }
+
+    .session-loading {
+      color: var(--muted);
+      font-size: 12px;
+      padding: 8px 0;
+    }
+
+    /* Station grid */
+    #station-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .station-btn {
+      padding: 8px 6px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      background: rgba(14, 20, 31, 0.8);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 12px;
+      text-align: center;
+      transition: border-color 80ms, color 80ms;
+    }
+
+    .station-btn:hover {
+      border-color: rgba(111, 211, 255, 0.35);
+      color: var(--ink);
+    }
+
+    .station-btn.selected {
+      border-color: rgba(111, 211, 255, 0.65);
+      background: rgba(20, 50, 75, 0.85);
+      color: var(--accent);
+    }
+
+    #join-btn {
+      padding: 12px;
+      border: 1px solid rgba(111, 211, 255, 0.5);
+      background: rgba(20, 60, 90, 0.9);
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: background 80ms, border-color 80ms;
+    }
+
+    #join-btn:hover:not(:disabled) {
+      background: rgba(30, 80, 115, 0.95);
+      border-color: rgba(111, 211, 255, 0.8);
+    }
+
+    #join-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    #advanced-toggle {
+      color: var(--muted);
+      font-size: 11px;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      pointer-events: auto;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    #advanced-toggle:hover {
+      color: var(--ink);
+    }
+
+    #advanced-panel {
+      display: none;
+      gap: 8px;
+    }
+
+    #advanced-panel.open {
+      display: grid;
     }
 
     #actions {
@@ -250,6 +389,7 @@
       <div id="hud-actions">
         <button id="toggle-fullscreen" type="button">Enter Full Screen</button>
         <button id="back-to-ship-selection" type="button">Back To Ship Selection</button>
+        <button id="export-asset-trace" type="button" hidden>Export Asset Trace</button>
         <button id="ptt-server" type="button">Talk To Server</button>
         <button id="ptt-ship" type="button">Talk To Ship</button>
         <button id="help-btn" type="button">Help</button>
@@ -262,40 +402,64 @@
     <canvas id="canvas" tabindex="0"></canvas>
     <div id="toast" aria-live="polite"></div>
     <div id="overlay">
-      <strong>Browser milestone:</strong> local spectator and bridge-connected multiplayer client slices are both available.
+      <strong>EmptyEpsilon</strong>
       <div id="controls">
         <label>
-          Bridge URL
-          <input id="bridge-url" type="text" value="" spellcheck="false">
+          Your Name
+          <input id="player-name" type="text" value="web_user" spellcheck="false" autocomplete="nickname">
         </label>
         <label>
-          Player Name
-          <input id="player-name" type="text" value="web_user" spellcheck="false">
+          Mission
+          <div id="session-list">
+            <div class="session-loading">Loading available missions…</div>
+          </div>
         </label>
         <label>
-          Bridge Station
-          <select id="station-select">
-            <option value="relay" selected>Relay</option>
-            <option value="science">Science</option>
-            <option value="helms">Helms</option>
-            <option value="weapons">Weapons</option>
-            <option value="engineering">Engineering</option>
-            <option value="operations">Operations</option>
-            <option value="tactical">Tactical</option>
-            <option value="singlepilot">Single Pilot</option>
-            <option value="mainscreen">Main Screen</option>
-          </select>
+          Station
+          <div id="station-grid">
+            <button class="station-btn selected" type="button" data-station="relay">Relay</button>
+            <button class="station-btn" type="button" data-station="helms">Helms</button>
+            <button class="station-btn" type="button" data-station="weapons">Weapons</button>
+            <button class="station-btn" type="button" data-station="science">Science</button>
+            <button class="station-btn" type="button" data-station="engineering">Engineering</button>
+            <button class="station-btn" type="button" data-station="operations">Operations</button>
+            <button class="station-btn" type="button" data-station="tactical">Tactical</button>
+            <button class="station-btn" type="button" data-station="singlepilot">Single Pilot</button>
+            <button class="station-btn" type="button" data-station="mainscreen">Main Screen</button>
+          </div>
         </label>
-        <div id="actions">
-          <button id="launch-spectator" type="button">Local Spectator</button>
-          <button id="launch-menu" type="button">Main Menu</button>
-          <button id="launch-bridge" type="button">Bridge Connect</button>
+        <button id="join-btn" type="button" disabled>Join Mission</button>
+        <div id="audio-state" style="color: var(--muted); font-size: 12px;">Audio: waiting for runtime</div>
+        <button id="advanced-toggle" type="button">Advanced options</button>
+        <div id="advanced-panel">
+          <div id="actions">
+            <button id="launch-spectator" type="button">Local Spectator</button>
+            <button id="launch-menu" type="button">Main Menu</button>
+            <button id="test-audio" type="button">Test Audio</button>
+          </div>
+          <label>
+            Bridge URL (override)
+            <input id="bridge-url" type="text" value="" spellcheck="false" placeholder="wss://…">
+          </label>
+          <label>
+            Station (override)
+            <select id="station-select">
+              <option value="relay" selected>Relay</option>
+              <option value="science">Science</option>
+              <option value="helms">Helms</option>
+              <option value="weapons">Weapons</option>
+              <option value="engineering">Engineering</option>
+              <option value="operations">Operations</option>
+              <option value="tactical">Tactical</option>
+              <option value="singlepilot">Single Pilot</option>
+              <option value="mainscreen">Main Screen</option>
+            </select>
+          </label>
+          <div id="actions">
+            <button id="launch-bridge" type="button">Bridge Connect</button>
+          </div>
+          <div id="hint">URL params: <code>?bridge=</code>, <code>?station=</code>, <code>?username=</code>, <code>?mode=menu</code>.</div>
         </div>
-        <div id="actions">
-          <button id="test-audio" type="button">Test Audio</button>
-        </div>
-        <div id="hint">URL params still work: <code>?bridge=ws://&lt;this-host&gt;:35667</code>, <code>?station=relay</code>, <code>?mode=menu</code>, <code>?username=web_user</code>.</div>
-        <div id="audio-state" style="margin-top: 6px; color: var(--muted); font-size: 12px;">Audio: waiting for runtime</div>
       </div>
       <div id="diag">browser shell ready</div>
     </div>
@@ -309,8 +473,14 @@
     const playerNameInput = document.getElementById("player-name");
     const stationSelect = document.getElementById("station-select");
     const audioStateNode = document.getElementById("audio-state");
+    const joinBtn = document.getElementById("join-btn");
+    const sessionListNode = document.getElementById("session-list");
+    const stationGrid = document.getElementById("station-grid");
+    const advancedToggle = document.getElementById("advanced-toggle");
+    const advancedPanel = document.getElementById("advanced-panel");
     const fullscreenButton = document.getElementById("toggle-fullscreen");
     const backToShipSelectionButton = document.getElementById("back-to-ship-selection");
+    const exportAssetTraceButton = document.getElementById("export-asset-trace");
     const pttServerButton = document.getElementById("ptt-server");
     const pttShipButton = document.getElementById("ptt-ship");
     const helpButton = document.getElementById("help-btn");
@@ -328,6 +498,449 @@
     const defaultBridgeHost = window.location.hostname || "127.0.0.1";
     const defaultBridgeScheme = window.location.protocol === "https:" ? "wss" : "ws";
     const defaultBridgeUrl = defaultBridgeScheme + "://" + defaultBridgeHost + ":35667";
+    const defaultSessionManifestUrl = params.get("sessionManifest") || "/admin-api/browser/session-manifest.json";
+    const loadedBrowserBundles = new Map();
+    const browserScenarioRequestState = Object.create(null);
+    window.EmptyEpsilonBrowserScenarioRequestState = browserScenarioRequestState;
+    const assetTraceEnabled = params.get("assetTrace") === "1";
+    const assetTrace = {
+      enabled: assetTraceEnabled,
+      installed: false,
+      scenario: "",
+      paths: new Set(),
+      bundleIds: new Set(),
+      reset() {
+        this.paths.clear();
+        this.bundleIds.clear();
+      },
+      setScenario(value) {
+        this.scenario = String(value || "");
+      },
+      recordPath(value) {
+        if (!this.enabled || !value) {
+          return;
+        }
+        const normalized = String(value).replace(/\\/g, "/");
+        if (!normalized.startsWith("/resources/") && !normalized.startsWith("/packs/") && !normalized.startsWith("/scripts/")) {
+          return;
+        }
+        this.paths.add(normalized);
+      },
+      recordBundle(bundleId) {
+        if (this.enabled && bundleId) {
+          this.bundleIds.add(String(bundleId));
+        }
+      },
+      install() {
+        // Temporary browser-side instrumentation for tightening scenario bundle manifests.
+        // Remove this block once the trace-driven split is no longer needed.
+        if (!this.enabled || this.installed || typeof FS === "undefined" || typeof FS.open !== "function") {
+          return;
+        }
+        const originalOpen = FS.open.bind(FS);
+        const trace = this;
+        FS.open = function(path, flags, mode) {
+          let permissions = "";
+          try {
+            permissions = typeof FS.flagsToPermissionString === "function" ? FS.flagsToPermissionString(flags) : String(flags || "");
+          } catch (_error) {
+            permissions = String(flags || "");
+          }
+          if (permissions.indexOf("r") !== -1 && typeof path === "string") {
+            trace.recordPath(path);
+          }
+          return originalOpen(path, flags, mode);
+        };
+        this.installed = true;
+      },
+      export() {
+        const payload = {
+          scenario: this.scenario,
+          loaded_bundles: Array.from(this.bundleIds).sort(),
+          opened_paths: Array.from(this.paths).sort()
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const slug = (this.scenario || "asset-trace").replace(/[^a-z0-9._-]+/gi, "-");
+        link.href = url;
+        link.download = slug + ".asset-trace.json";
+        link.click();
+        URL.revokeObjectURL(url);
+        return payload;
+      }
+    };
+    window.EmptyEpsilonAssetTrace = assetTrace;
+
+    function resolveAssetUrl(value) {
+      return new URL(String(value || ""), window.location.href).toString();
+    }
+
+    function setOverlayVisible(visible) {
+      if (diagEnabled || visible) {
+        overlayNode.style.display = "block";
+      } else {
+        overlayNode.style.display = "none";
+      }
+    }
+
+    function ensureFsDirectory(absolutePath) {
+      const segments = absolutePath.split("/").filter(Boolean);
+      let current = "";
+      for (const segment of segments) {
+        current += "/" + segment;
+        let stat = null;
+        try {
+          stat = FS.stat(current);
+        } catch (_error) {
+          stat = null;
+        }
+        if (stat) {
+          if (!FS.isDir(stat.mode)) {
+            throw new Error("Expected directory at " + current);
+          }
+          continue;
+        }
+        FS.mkdir(current);
+      }
+    }
+
+    function removeFsPathRecursive(absolutePath) {
+      let stat = null;
+      try {
+        stat = FS.stat(absolutePath);
+      } catch (_error) {
+        return;
+      }
+      if (FS.isDir(stat.mode)) {
+        const children = FS.readdir(absolutePath).filter(function(name) {
+          return name !== "." && name !== "..";
+        });
+        for (const child of children) {
+          removeFsPathRecursive(absolutePath.replace(/\/+$/, "") + "/" + child);
+        }
+        FS.rmdir(absolutePath);
+        return;
+      }
+      FS.unlink(absolutePath);
+    }
+
+    function writeBundleFile(absolutePath, data) {
+      try {
+        const stat = FS.stat(absolutePath);
+        if (FS.isDir(stat.mode)) {
+          removeFsPathRecursive(absolutePath);
+        } else {
+          FS.unlink(absolutePath);
+        }
+      } catch (_error) {
+      }
+      FS.writeFile(absolutePath, data);
+    }
+
+    function delayMs(milliseconds) {
+      return new Promise(function(resolve) {
+        window.setTimeout(resolve, milliseconds);
+      });
+    }
+
+    async function waitForFsPath(absolutePath, timeoutMs) {
+      const deadline = Date.now() + Math.max(0, timeoutMs || 0);
+      while (true) {
+        try {
+          FS.stat(absolutePath);
+          return;
+        } catch (_error) {
+        }
+        if (Date.now() >= deadline) {
+          throw new Error("Timed out waiting for " + absolutePath);
+        }
+        await delayMs(25);
+      }
+    }
+
+    function parseBinaryBundle(buffer) {
+      const bytes = new Uint8Array(buffer);
+      const magicBytes = [69, 69, 66, 78, 68, 76, 49, 0];
+      for (let index = 0; index < magicBytes.length; index += 1) {
+        if (bytes[index] !== magicBytes[index]) {
+          throw new Error("Unknown binary bundle header");
+        }
+      }
+      const view = new DataView(buffer);
+      const version = view.getUint32(8, true);
+      if (version !== 1) {
+        throw new Error("Unsupported binary bundle version " + version);
+      }
+      const fileCount = view.getUint32(12, true);
+      const decoder = new TextDecoder("utf-8");
+      const files = [];
+      let offset = 16;
+      for (let fileIndex = 0; fileIndex < fileCount; fileIndex += 1) {
+        const pathLength = view.getUint32(offset, true);
+        offset += 4;
+        const dataLength = view.getUint32(offset, true);
+        offset += 4;
+        const pathBytes = bytes.slice(offset, offset + pathLength);
+        offset += pathLength;
+        const fileBytes = bytes.slice(offset, offset + dataLength);
+        offset += dataLength;
+        files.push({
+          path: decoder.decode(pathBytes),
+          data: fileBytes
+        });
+      }
+      return files;
+    }
+
+    const assetLoader = {
+      scenarioIndexPromise: null,
+      currentLoadPromise: Promise.resolve(),
+      ensureScenarioRequestState(scenarioFilename) {
+        const key = String(scenarioFilename || "");
+        if (!browserScenarioRequestState[key]) {
+          browserScenarioRequestState[key] = {
+            ready: false,
+            failed: false,
+            error: "",
+            status: ""
+          };
+        }
+        return browserScenarioRequestState[key];
+      },
+      reportScenarioStatus(scenarioFilename, message) {
+        const text = String(message || "");
+        const state = this.ensureScenarioRequestState(scenarioFilename);
+        state.status = text;
+        if (diagEnabled) {
+          window.EmptyEpsilonDiag("local assets [" + scenarioFilename + "]: " + text);
+        }
+      },
+      async fetchJsonWithFallback(urls) {
+        const attempts = [];
+        for (const candidate of urls) {
+          if (!candidate) {
+            continue;
+          }
+          const resolvedUrl = resolveAssetUrl(candidate);
+          try {
+            const response = await window.fetch(resolvedUrl, { cache: "default" });
+            if (!response.ok) {
+              throw new Error("HTTP " + response.status);
+            }
+            return await response.json();
+          } catch (error) {
+            attempts.push(resolvedUrl + " (" + error + ")");
+          }
+        }
+        throw new Error(attempts.join("; "));
+      },
+      async fetchArrayBufferWithFallback(urls) {
+        const attempts = [];
+        for (const candidate of urls) {
+          if (!candidate) {
+            continue;
+          }
+          const resolvedUrl = resolveAssetUrl(candidate);
+          try {
+            const response = await window.fetch(resolvedUrl, { cache: "default" });
+            if (!response.ok) {
+              throw new Error("HTTP " + response.status);
+            }
+            return await response.arrayBuffer();
+          } catch (error) {
+            attempts.push(resolvedUrl + " (" + error + ")");
+          }
+        }
+        throw new Error(attempts.join("; "));
+      },
+      async getScenarioIndex() {
+        if (!this.scenarioIndexPromise) {
+          this.scenarioIndexPromise = this.fetchJsonWithFallback(["/asset_bundles/index.json"]);
+        }
+        return this.scenarioIndexPromise;
+      },
+      async mountBundle(bundleManifest, scenarioFilename) {
+        if (!bundleManifest || !bundleManifest.bundle_id) {
+          throw new Error("Bundle manifest missing bundle_id");
+        }
+        if (loadedBrowserBundles.get(bundleManifest.bundle_id) === bundleManifest.content_hash) {
+          if (scenarioFilename) {
+            this.reportScenarioStatus(scenarioFilename, "Reusing bundle " + bundleManifest.bundle_id);
+          }
+          assetTrace.recordBundle(bundleManifest.bundle_id);
+          return;
+        }
+        if (scenarioFilename) {
+          this.reportScenarioStatus(scenarioFilename, "Downloading bundle " + bundleManifest.bundle_id);
+        }
+        setStatus("Downloading asset bundle " + bundleManifest.bundle_id, false);
+        const bundleBuffer = await this.fetchArrayBufferWithFallback([
+          bundleManifest.artifact_url,
+          bundleManifest.fallback_url
+        ]);
+        if (scenarioFilename) {
+          this.reportScenarioStatus(scenarioFilename, "Mounting bundle " + bundleManifest.bundle_id);
+        }
+        const bundleFiles = parseBinaryBundle(bundleBuffer);
+        for (const fileEntry of bundleFiles) {
+          const absolutePath = "/" + String(fileEntry.path || "").replace(/^\/+/, "");
+          const slashIndex = absolutePath.lastIndexOf("/");
+          if (slashIndex > 0) {
+            ensureFsDirectory(absolutePath.slice(0, slashIndex));
+          }
+          writeBundleFile(absolutePath, fileEntry.data);
+          if (absolutePath.endsWith(".pack")) {
+            try {
+              if (typeof Module !== "undefined" && typeof Module._browserRegisterPackFile === "function" && typeof Module.ccall === "function") {
+                Module.ccall("browserRegisterPackFile", null, ["string"], [absolutePath]);
+              }
+            } catch (_packErr) {
+              // C++ runtime not yet started during preRun; pack will be found by initResourcePaths()
+            }
+          }
+        }
+        try {
+          if (typeof Module !== "undefined" && typeof Module.ccall === "function" && typeof Module._browserBundleMountComplete === "function") {
+            Module.ccall("browserBundleMountComplete", null, [], []);
+          }
+        } catch (_e) {}
+        loadedBrowserBundles.set(bundleManifest.bundle_id, bundleManifest.content_hash || "loaded");
+        assetTrace.recordBundle(bundleManifest.bundle_id);
+      },
+      async loadScenarioManifestObject(manifest, reasonLabel, scenarioFilename) {
+        if (!manifest || !Array.isArray(manifest.required_bundles)) {
+          throw new Error("Scenario manifest missing required_bundles");
+        }
+        assetTrace.setScenario(manifest.scenario_file || reasonLabel || "");
+        setStatus("Preparing " + (reasonLabel || manifest.scenario_file || "scenario"), false);
+        if (scenarioFilename) {
+          this.reportScenarioStatus(scenarioFilename, "Manifest resolved");
+        }
+        for (const bundleManifest of manifest.required_bundles) {
+          await this.mountBundle(bundleManifest, scenarioFilename);
+        }
+        if (scenarioFilename) {
+          this.reportScenarioStatus(scenarioFilename, "Scenario assets ready");
+        }
+        return manifest;
+      },
+      async loadScenarioManifestUrl(url, reasonLabel, scenarioFilename) {
+        const manifest = await this.fetchJsonWithFallback([url]);
+        return this.loadScenarioManifestObject(manifest, reasonLabel, scenarioFilename);
+      },
+      async preloadLaunchAssets() {
+        if (!params.has("bridge")) {
+          return;
+        }
+        await waitForFsPath("/resources/gui/default.theme.txt", 10000);
+        window.EmptyEpsilonDiag("base data ready: /resources/gui/default.theme.txt");
+        const sessionManifest = await this.fetchJsonWithFallback([defaultSessionManifestUrl]);
+        if (!sessionManifest || !sessionManifest.scenario_manifest) {
+          throw new Error("Remote session manifest missing scenario_manifest");
+        }
+        await this.loadScenarioManifestObject(sessionManifest.scenario_manifest, sessionManifest.scenario_file || "remote scenario");
+      },
+      async preloadLaunchAssetsWithRetry() {
+        const maxAttempts = 3;
+        let lastError = null;
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          try {
+            window.EmptyEpsilonDiag("asset preload attempt " + attempt + "/" + maxAttempts);
+            await this.preloadLaunchAssets();
+            window.EmptyEpsilonDiag("asset preload succeeded on attempt " + attempt);
+            return;
+          } catch (error) {
+            lastError = error;
+            window.EmptyEpsilonDiag("asset preload attempt " + attempt + " failed: " + error);
+            if (attempt >= maxAttempts) {
+              break;
+            }
+            await delayMs(250 * attempt);
+          }
+        }
+        throw lastError || new Error("Asset preload failed");
+      },
+      requestScenarioAssets(scenarioFilename, localSession) {
+        const state = this.ensureScenarioRequestState(scenarioFilename);
+        state.ready = false;
+        state.failed = false;
+        state.error = "";
+        state.status = "Queued";
+        let completionSent = false;
+        const complete = (kind, detail) => {
+          if (completionSent) {
+            return;
+          }
+          completionSent = true;
+          if (kind === "ready") {
+            state.ready = true;
+            state.failed = false;
+            state.error = "";
+            this.reportScenarioStatus(scenarioFilename, "Ready");
+            return;
+          }
+          state.ready = false;
+          state.failed = true;
+          state.error = String(detail || "Browser asset request failed");
+          this.reportScenarioStatus(scenarioFilename, "Failed: " + String(detail || "Browser asset request failed"));
+        };
+        const finishReady = () => {
+          complete("ready");
+        };
+        const finishFailed = (error) => {
+          complete("failed", error);
+        };
+        this.currentLoadPromise = this.currentLoadPromise.then(async () => {
+          if (!localSession) {
+            setOverlayVisible(true);
+          }
+          this.reportScenarioStatus(scenarioFilename, "Resolving manifest");
+          const scenarioIndex = await this.getScenarioIndex();
+          const scenarioEntry = scenarioIndex && scenarioIndex.scenarios ? scenarioIndex.scenarios[scenarioFilename] : null;
+          if (!scenarioEntry || !scenarioEntry.scenario_manifest_url) {
+            throw new Error("No browser asset manifest configured for " + scenarioFilename);
+          }
+          await this.loadScenarioManifestUrl(
+            scenarioEntry.scenario_manifest_url,
+            (localSession ? "local " : "") + scenarioFilename,
+            scenarioFilename
+          );
+          if (!localSession && !diagEnabled) {
+            setOverlayVisible(false);
+          }
+          setStatus("Scenario assets ready for " + scenarioFilename, false);
+          finishReady();
+        }).catch((error) => {
+          setStatus("Asset download failed for " + scenarioFilename, true);
+          if (!localSession) {
+            setOverlayVisible(true);
+          }
+          finishFailed(error);
+        });
+        return this.currentLoadPromise;
+      },
+      async handleRemoteSessionManifestChanged(manifestUrl, revision) {
+        setOverlayVisible(true);
+        setStatus("Updating scenario assets", false);
+        const sessionManifest = await this.fetchJsonWithFallback([manifestUrl || defaultSessionManifestUrl]);
+        if (!sessionManifest || !sessionManifest.scenario_manifest) {
+          throw new Error("Changed session manifest missing scenario_manifest");
+        }
+        await this.loadScenarioManifestObject(sessionManifest.scenario_manifest, sessionManifest.scenario_file || "updated scenario");
+        if (!diagEnabled) {
+          setOverlayVisible(false);
+        }
+        setStatus("Scenario assets updated" + (revision ? " (" + revision + ")" : ""), false);
+      }
+    };
+    window.EmptyEpsilonAssetLoader = assetLoader;
+    window.EmptyEpsilonOnRemoteSessionManifestChanged = function(manifestUrl, revision) {
+      assetLoader.handleRemoteSessionManifestChanged(manifestUrl, revision).catch(function(error) {
+        setOverlayVisible(true);
+        setStatus("Scenario asset update failed: " + error, true);
+      });
+    };
 
     function sanitizeProfileName(value) {
       return String(value || "").trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -384,12 +997,184 @@
       window.location.href = url.toString();
     }
 
+    // ── Lobby: session + station picker ─────────────────────────────────────
+
+    const lobbyState = {
+      sessions: [],        // loaded from sessions.json
+      selectedSessionId: null,
+      selectedStation: "relay",
+      statusPolls: {},     // id → { count, timer }
+    };
+
+    function lobbyGetSelectedBridgeUrl() {
+      // Advanced override takes precedence when filled in
+      const override = bridgeInput.value.trim();
+      if (override) return override;
+      const session = lobbyState.sessions.find(s => s.id === lobbyState.selectedSessionId);
+      return session ? session.bridge_url : defaultBridgeUrl;
+    }
+
+    function lobbyGetSelectedStation() {
+      const override = stationSelect.value;
+      // stationSelect defaults to relay; only treat it as an override if advanced panel is open
+      if (advancedPanel.classList.contains("open")) return override;
+      return lobbyState.selectedStation;
+    }
+
+    function lobbyUpdateJoinEnabled() {
+      joinBtn.disabled = !lobbyState.selectedSessionId || !lobbyState.selectedStation;
+    }
+
+    function lobbyRenderSessions() {
+      if (!lobbyState.sessions.length) {
+        sessionListNode.innerHTML = '<div class="session-loading">No missions available.</div>';
+        return;
+      }
+      sessionListNode.innerHTML = "";
+      for (const session of lobbyState.sessions) {
+        const row = document.createElement("div");
+        row.className = "session-option" + (session.id === lobbyState.selectedSessionId ? " selected" : "");
+        row.dataset.sessionId = session.id;
+
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "session";
+        radio.value = session.id;
+        radio.checked = session.id === lobbyState.selectedSessionId;
+
+        const labelDiv = document.createElement("div");
+        labelDiv.className = "session-label";
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "session-name";
+        nameSpan.textContent = session.name || session.id;
+
+        const descSpan = document.createElement("span");
+        descSpan.className = "session-desc";
+        descSpan.textContent = session.description || "";
+
+        labelDiv.appendChild(nameSpan);
+        if (session.description) labelDiv.appendChild(descSpan);
+
+        const countSpan = document.createElement("span");
+        countSpan.className = "session-count";
+        countSpan.id = "session-count-" + session.id;
+        const cached = lobbyState.statusPolls[session.id];
+        countSpan.textContent = cached && cached.count != null ? cached.count + " crew online" : "";
+
+        row.appendChild(radio);
+        row.appendChild(labelDiv);
+        row.appendChild(countSpan);
+
+        row.addEventListener("click", function() {
+          lobbyState.selectedSessionId = session.id;
+          lobbyRenderSessions();
+          lobbyUpdateJoinEnabled();
+        });
+
+        sessionListNode.appendChild(row);
+      }
+    }
+
+    function lobbyUpdateCount(sessionId, count) {
+      const node = document.getElementById("session-count-" + sessionId);
+      if (node) node.textContent = count != null ? count + " crew online" : "";
+    }
+
+    async function lobbyPollStatus(session) {
+      if (!session.status_url) return;
+      try {
+        const response = await window.fetch(resolveAssetUrl(session.status_url), { cache: "no-store" });
+        if (!response.ok) return;
+        const text = await response.text();
+        // Response is JSONP: window.EmptyEpsilonAdminStatus && window.EmptyEpsilonAdminStatus({...});
+        const match = text.match(/EmptyEpsilonAdminStatus\s*\(\s*(\{[\s\S]*\})\s*\)/);
+        if (!match) return;
+        const data = JSON.parse(match[1]);
+        const count = data && typeof data.player_count === "number" ? data.player_count : null;
+        if (!lobbyState.statusPolls[session.id]) lobbyState.statusPolls[session.id] = {};
+        lobbyState.statusPolls[session.id].count = count;
+        lobbyUpdateCount(session.id, count);
+      } catch (_e) {
+        // status poll failures are silent
+      }
+    }
+
+    function lobbyStartPolling() {
+      for (const session of lobbyState.sessions) {
+        lobbyPollStatus(session);
+        const timer = window.setInterval(() => lobbyPollStatus(session), 5000);
+        if (!lobbyState.statusPolls[session.id]) lobbyState.statusPolls[session.id] = {};
+        lobbyState.statusPolls[session.id].timer = timer;
+      }
+    }
+
+    async function lobbyInit() {
+      // If bridge= param already in URL, skip lobby entirely
+      if (params.has("bridge") || params.has("mode")) return;
+
+      sessionListNode.innerHTML = '<div class="session-loading">Loading available missions…</div>';
+      setOverlayVisible(true);
+
+      try {
+        const response = await window.fetch("sessions.json", { cache: "no-store" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const data = await response.json();
+        lobbyState.sessions = Array.isArray(data.sessions) ? data.sessions : [];
+      } catch (_e) {
+        // sessions.json missing or failed: fall back to a single session using the default bridge
+        lobbyState.sessions = [{
+          id: "default",
+          name: "EmptyEpsilon",
+          description: "",
+          bridge_url: defaultBridgeUrl,
+          status_url: "/admin-api/status.js"
+        }];
+      }
+
+      if (lobbyState.sessions.length === 1) {
+        lobbyState.selectedSessionId = lobbyState.sessions[0].id;
+      }
+
+      lobbyRenderSessions();
+      lobbyUpdateJoinEnabled();
+      lobbyStartPolling();
+    }
+
+    // Station grid
+    for (const btn of stationGrid.querySelectorAll(".station-btn")) {
+      btn.addEventListener("click", function() {
+        lobbyState.selectedStation = this.dataset.station;
+        for (const b of stationGrid.querySelectorAll(".station-btn")) {
+          b.classList.toggle("selected", b === this);
+        }
+        lobbyUpdateJoinEnabled();
+      });
+    }
+
+    // Join button
+    joinBtn.addEventListener("click", function() {
+      const bridgeUrl = lobbyGetSelectedBridgeUrl();
+      const station = lobbyGetSelectedStation();
+      const nextParams = new URLSearchParams();
+      nextParams.set("bridge", bridgeUrl);
+      nextParams.set("station", station);
+      const username = playerNameInput.value.trim();
+      if (username) nextParams.set("username", username);
+      launchWithParams(nextParams);
+    });
+
+    // Advanced toggle
+    advancedToggle.addEventListener("click", function() {
+      advancedPanel.classList.toggle("open");
+      advancedToggle.textContent = advancedPanel.classList.contains("open") ? "Hide advanced options" : "Advanced options";
+    });
+
+    // Advanced panel — legacy buttons
     document.getElementById("launch-spectator").addEventListener("click", function() {
       const nextParams = new URLSearchParams();
       const username = playerNameInput.value.trim();
-      if (username) {
-        nextParams.set("username", username);
-      }
+      if (username) nextParams.set("username", username);
       launchWithParams(nextParams);
     });
 
@@ -397,9 +1182,7 @@
       const nextParams = new URLSearchParams();
       nextParams.set("mode", "menu");
       const username = playerNameInput.value.trim();
-      if (username) {
-        nextParams.set("username", username);
-      }
+      if (username) nextParams.set("username", username);
       launchWithParams(nextParams);
     });
 
@@ -408,11 +1191,11 @@
       nextParams.set("bridge", bridgeInput.value.trim() || defaultBridgeUrl);
       nextParams.set("station", stationSelect.value);
       const username = playerNameInput.value.trim();
-      if (username) {
-        nextParams.set("username", username);
-      }
+      if (username) nextParams.set("username", username);
       launchWithParams(nextParams);
     });
+
+    lobbyInit();
 
     function setStatus(message, isError) {
       const suffix = " [profile " + activeProfileLabel + "]";
@@ -896,32 +1679,68 @@
       });
     });
 
+    function startBridgeAssetPreloadAfterRuntime() {
+      if (!params.has("bridge")) {
+        return;
+      }
+      assetLoader.preloadLaunchAssetsWithRetry().then(function() {
+        try {
+          var packsDir = FS.readdir("/packs");
+          var packFiles = packsDir.filter(function(f) { return f !== "." && f !== ".."; });
+          if (packFiles.length > 0) {
+            window.EmptyEpsilonDiag("vfs: /packs has " + packFiles.length + " file(s): " + packFiles.join(", "));
+          } else {
+            window.EmptyEpsilonDiag("vfs: WARNING /packs directory is empty");
+          }
+        } catch (fsErr) {
+          window.EmptyEpsilonDiag("vfs: WARNING /packs directory missing from VFS: " + fsErr);
+        }
+        if (!diagEnabled) {
+          setOverlayVisible(false);
+        }
+      }).catch(function(error) {
+        window.EmptyEpsilonDiag("asset preload failed: " + error);
+        setOverlayVisible(true);
+        setStatus("Scenario asset preload failed: " + error, true);
+      });
+    }
+
     var Module = {
       arguments: moduleArgs,
       canvas,
       preRun: [function() {
         if (typeof FS === "undefined" || typeof IDBFS === "undefined") {
           window.EmptyEpsilonDiag("idbfs: unavailable in runtime");
-          return;
-        }
-        try {
-          FS.mkdir(configMountPoint);
-        } catch (error) {
-          if (!/File exists/.test(String(error))) {
+        } else {
+          try {
+            var configStat = null;
+            try {
+              configStat = FS.stat(configMountPoint);
+            } catch (_error) {
+              configStat = null;
+            }
+            if (configStat) {
+              if (!FS.isDir(configStat.mode)) {
+                throw new Error("Expected config mount directory at " + configMountPoint);
+              }
+            } else {
+              FS.mkdir(configMountPoint);
+            }
+          } catch (error) {
             throw error;
           }
+          FS.mount(IDBFS, {}, configMountPoint);
+          addRunDependency("ee-idbfs-load");
+          window.EmptyEpsilonDiag("idbfs: syncing from browser storage at " + configMountPoint);
+          FS.syncfs(true, function(err) {
+            if (err) {
+              window.EmptyEpsilonDiag("idbfs: initial sync failed");
+            } else {
+              window.EmptyEpsilonDiag("idbfs: initial sync complete");
+            }
+            removeRunDependency("ee-idbfs-load");
+          });
         }
-        FS.mount(IDBFS, {}, configMountPoint);
-        addRunDependency("ee-idbfs-load");
-        window.EmptyEpsilonDiag("idbfs: syncing from browser storage at " + configMountPoint);
-        FS.syncfs(true, function(err) {
-          if (err) {
-            window.EmptyEpsilonDiag("idbfs: initial sync failed");
-          } else {
-            window.EmptyEpsilonDiag("idbfs: initial sync complete");
-          }
-          removeRunDependency("ee-idbfs-load");
-        });
       }],
       setStatus: function(message) {
         setStatus(message || "Running", false);
@@ -934,6 +1753,7 @@
       },
       onRuntimeInitialized: function() {
         runtimeReady = true;
+        assetTrace.install();
         backToShipSelectionButton.disabled = false;
         setStatus("Runtime initialized", false);
         window.EmptyEpsilonDiag("runtime initialized");
@@ -946,6 +1766,7 @@
         if (moduleArgs.length) {
           window.EmptyEpsilonDiag("argv: " + moduleArgs.join(" "));
         }
+        startBridgeAssetPreloadAfterRuntime();
       },
       monitorRunDependencies: function(left) {
         if (left > 0) {
@@ -990,6 +1811,12 @@
     }
     updateFullscreenButton();
     backToShipSelectionButton.disabled = true;
+    exportAssetTraceButton.hidden = !assetTraceEnabled;
+    exportAssetTraceButton.addEventListener("click", function(event) {
+      event.preventDefault();
+      const payload = assetTrace.export();
+      setStatus("Exported asset trace for " + (payload.scenario || "current session"), false);
+    });
     bindPushToTalkButton(pttServerButton, 0, "server");
     bindPushToTalkButton(pttShipButton, 1, "ship");
     helpButton.addEventListener("click", function() {

@@ -6,10 +6,58 @@
 #include "crewPosition.h"
 #include "multiplayer_server.h"
 #include "engine.h"
+#include "preferenceManager.h"
+#include <filesystem>
+#include <fstream>
 
 #define sOBJECT "_OBJECT_"
 
 namespace {
+string readTextFile(const std::filesystem::path& path)
+{
+    std::ifstream input(path, std::ios::binary);
+    if (!input)
+        return "";
+    std::string content{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    return string(content);
+}
+
+std::filesystem::path getBrowserBundleRoot()
+{
+    return std::filesystem::path(PreferencesManager::get("browser_bundle_root", "build-wasm/asset_bundles").c_str());
+}
+
+std::filesystem::path getScenarioManifestPath(const string& scenario_filename)
+{
+    return getBrowserBundleRoot() / "scenarios" / (scenario_filename + ".json");
+}
+
+std::filesystem::path getBundleArtifactPath(const string& bundle_filename)
+{
+    return getBrowserBundleRoot() / "bundles" / std::filesystem::path(bundle_filename.c_str());
+}
+
+void addBrowserBundleHandlers(sp::io::http::Server& server)
+{
+    std::error_code error;
+    const auto bundle_root = getBrowserBundleRoot() / "bundles";
+    if (!std::filesystem::exists(bundle_root, error))
+        return;
+    for (const auto& entry : std::filesystem::directory_iterator(bundle_root, error))
+    {
+        if (error || !entry.is_regular_file())
+            continue;
+        const auto filename = string(entry.path().filename().u8string());
+        server.addURLHandler("/browser/bundles/" + filename, [filename](const sp::io::http::Server::Request&) -> string
+        {
+            auto payload = readTextFile(getBundleArtifactPath(filename));
+            if (payload.empty())
+                return "{\"ERROR\":\"Bundle not found\"}";
+            return payload;
+        });
+    }
+}
+
 string jsonEscape(const string& value)
 {
     string escaped;
@@ -51,6 +99,27 @@ string crewPositionsToJson(const std::vector<CrewPositions>& monitors)
     }
     result += "]";
     return result;
+}
+
+string buildBrowserSessionManifestJson()
+{
+    const auto scenario_manifest_path = getScenarioManifestPath(gameGlobalInfo ? gameGlobalInfo->browser_asset_scenario_file : "");
+    const auto scenario_manifest_body = readTextFile(scenario_manifest_path);
+    string json = "{";
+    json += "\"schema_version\":1,";
+    json += "\"session_id\":\"" + jsonEscape(gameGlobalInfo ? gameGlobalInfo->browser_asset_session_id : "") + "\",";
+    json += "\"scenario_file\":\"" + jsonEscape(gameGlobalInfo ? gameGlobalInfo->browser_asset_scenario_file : "") + "\",";
+    json += "\"manifest_revision\":\"" + jsonEscape(gameGlobalInfo ? gameGlobalInfo->browser_asset_manifest_revision : "") + "\",";
+    json += "\"scenario_manifest_url\":\"/asset_bundles/scenarios/" + jsonEscape(gameGlobalInfo ? gameGlobalInfo->browser_asset_scenario_file : "") + ".json\",";
+    json += "\"bundle_root\":\"/asset_bundles/bundles/\",";
+    json += "\"fallback_bundle_root\":\"/admin-api/browser/bundles/\",";
+    json += "\"scenario_manifest\":";
+    if (!scenario_manifest_body.empty())
+        json += scenario_manifest_body;
+    else
+        json += "null";
+    json += "}";
+    return json;
 }
 
 string buildAdminStatusJson()
@@ -128,6 +197,7 @@ EEHttpServer::EEHttpServer(int port, string static_file_path)
 : server(port)
 {
     server.setStaticFilePath(static_file_path);
+    addBrowserBundleHandlers(server);
     server.addURLHandler("/exec.lua", [](const sp::io::http::Server::Request& request) -> string
     {
         if (!gameGlobalInfo)
@@ -151,6 +221,12 @@ EEHttpServer::EEHttpServer(int port, string static_file_path)
     server.addURLHandler("/scenarios.js", [](const sp::io::http::Server::Request&) -> string
     {
         return "window.EmptyEpsilonAdminScenarios && window.EmptyEpsilonAdminScenarios(" + buildScenarioListJson() + ");";
+    });
+    server.addURLHandler("/browser/session-manifest.json", [](const sp::io::http::Server::Request&) -> string
+    {
+        if (!gameGlobalInfo)
+            return "{\"ERROR\":\"No game\"}";
+        return buildBrowserSessionManifestJson();
     });
     server.addURLHandler("/get.lua", [](const sp::io::http::Server::Request& request) -> string
     {

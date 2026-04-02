@@ -1,0 +1,11 @@
+{
+  "sessions": [
+    {
+      "id": "main",
+      "name": "Basic Battle",
+      "description": "Classic bridge scenario, up to 12 crew",
+      "bridge_url": "ws://127.0.0.1:35667",
+      "status_url": "/admin-api/status.js"
+    }
+  ]
+}

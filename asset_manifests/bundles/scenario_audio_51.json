@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "bundle_id": "scenario_audio_51",
+  "description": "Scenario voice-over assets for scenario 51.",
+  "include": [
+    { "source": "resources/audio/scenario/51", "target": "resources/audio/scenario/51" }
+  ]
+}

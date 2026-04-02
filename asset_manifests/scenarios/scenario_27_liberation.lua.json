@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "scenario_id": "scenario_27_liberation",
+  "scenario_file": "scenario_27_liberation.lua",
+  "revision": 2,
+  "required_bundles": [
+    "scenario_resources_common",
+    "pack_angryfly",
+    "pack_asteroids",
+    "pack_msgamedev"
+  ],
+  "optional_bundles": []
+}

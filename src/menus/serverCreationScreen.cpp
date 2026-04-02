@@ -16,6 +16,78 @@
 #include "scenarioInfo.h"
 #include "main.h"
 
+#ifdef __EMSCRIPTEN__
+namespace
+{
+    constexpr float browserScenarioAssetTimeoutSeconds = 90.0f;
+
+    bool browserLocalSessionEnabled()
+    {
+        return PreferencesManager::get("browser_local_session", "") == "1";
+    }
+
+    string browserScenarioAssetStatusText(const string& filename)
+    {
+        auto status = browserScenarioAssetsStatus(filename);
+        if (status.empty())
+            return tr("Waiting for browser asset loader...");
+        return tr("Browser asset status: {status}").format({
+            {"status", status}
+        });
+    }
+
+    bool handlePendingBrowserScenarioRequest(const string& filename, float delta, float& pending_seconds, GuiButton* start_button, string* status_message)
+    {
+        if (filename.empty())
+            return false;
+
+        pending_seconds += delta;
+        if (status_message)
+            *status_message = browserScenarioAssetStatusText(filename);
+
+        if (browserScenarioAssetsReady(filename))
+        {
+            pending_seconds = 0.0f;
+            if (start_button)
+                start_button->enable();
+            return true;
+        }
+
+        if (browserScenarioAssetsFailed(filename))
+        {
+            if (status_message)
+            {
+                *status_message = tr("Failed to load browser scenario assets: {error}").format({
+                    {"error", browserScenarioAssetsError(filename)}
+                });
+            }
+            clearBrowserScenarioAssetRequest(filename);
+            pending_seconds = 0.0f;
+            if (start_button)
+                start_button->enable();
+            return false;
+        }
+
+        if (pending_seconds >= browserScenarioAssetTimeoutSeconds)
+        {
+            if (status_message)
+            {
+                *status_message = tr("Failed to load browser scenario assets: timed out after {seconds}s").format({
+                    {"seconds", string(static_cast<int>(browserScenarioAssetTimeoutSeconds))}
+                });
+            }
+            clearBrowserScenarioAssetRequest(filename);
+            pending_seconds = 0.0f;
+            if (start_button)
+                start_button->enable();
+            return false;
+        }
+
+        return false;
+    }
+}
+#endif
+
 
 ServerSetupScreen::ServerSetupScreen()
 {
@@ -249,10 +321,14 @@ ServerScenarioSelectionScreen::ServerScenarioSelectionScreen()
 
     // Close server button.
     (new GuiButton(row, "CLOSE_SERVER", tr("Close"), [this]() {
+#ifdef __EMSCRIPTEN__
+        if (!pending_browser_scenario.empty())
+            clearBrowserScenarioAssetRequest(pending_browser_scenario);
+#endif
         destroy();
         disconnectFromServer();
 #ifdef __EMSCRIPTEN__
-        if (PreferencesManager::get("browser_local_session", "") == "1")
+        if (browserLocalSessionEnabled())
         {
             PreferencesManager::set("browser_local_session", "");
             returnToMainMenu(getRenderLayer());
@@ -268,23 +344,18 @@ ServerScenarioSelectionScreen::ServerScenarioSelectionScreen()
         if (scenario_list->getSelectionIndex() == -1)
             return;
         auto filename = scenario_list->getEntryValue(scenario_list->getSelectionIndex());
-        ScenarioInfo info(filename);
-
-        if (info.settings.empty())
+#ifdef __EMSCRIPTEN__
+        if (browserLocalSessionEnabled())
         {
-            // Start the selected scenario.
-            gameGlobalInfo->scenario = info.name;
-            gameGlobalInfo->startScenario(filename);
-
-            // Destroy this screen and move on to ship selection.
-            destroy();
-            returnToShipSelection(getRenderLayer());
+            pending_browser_scenario = filename;
+            pending_browser_asset_seconds = 0.0f;
+            description_text->setText(tr("Requesting browser scenario assets..."));
+            start_button->disable();
+            requestBrowserScenarioAssets(filename, true);
+            return;
         }
-        else
-        {
-            new ServerScenarioOptionsScreen(filename);
-            destroy();
-        }
+#endif
+        startScenarioNow(filename);
     });
     start_button->setPosition(250.0f, 0.0f, sp::Alignment::BottomCenter)
                 ->setSize(300.0f, GuiElement::GuiSizeMax)->disable();
@@ -317,6 +388,25 @@ ServerScenarioSelectionScreen::ServerScenarioSelectionScreen()
     gameGlobalInfo->scenario_settings.clear();
 }
 
+void ServerScenarioSelectionScreen::update(float delta)
+{
+#ifdef __EMSCRIPTEN__
+    if (pending_browser_scenario.empty())
+        return;
+    auto filename = pending_browser_scenario;
+    string status_message;
+    if (handlePendingBrowserScenarioRequest(filename, delta, pending_browser_asset_seconds, start_button, &status_message))
+    {
+        pending_browser_scenario = "";
+        startScenarioNow(filename);
+    }
+    if (!status_message.empty())
+        description_text->setText(status_message);
+#else
+    (void)delta;
+#endif
+}
+
 void ServerScenarioSelectionScreen::loadScenarioList(const string& category)
 {
     scenario_list->setSelectionIndex(-1);
@@ -327,9 +417,32 @@ void ServerScenarioSelectionScreen::loadScenarioList(const string& category)
     description_text->setText(tr("Select a scenario..."));
 }
 
+void ServerScenarioSelectionScreen::startScenarioNow(const string& filename)
+{
+    ScenarioInfo info(filename);
+
+    if (info.settings.empty())
+    {
+#ifdef __EMSCRIPTEN__
+        clearBrowserScenarioAssetRequest(filename);
+#endif
+        gameGlobalInfo->scenario = info.name;
+        gameGlobalInfo->startScenario(filename);
+        destroy();
+        returnToShipSelection(getRenderLayer());
+    }
+    else
+    {
+        new ServerScenarioOptionsScreen(filename);
+        destroy();
+    }
+}
+
 ServerScenarioOptionsScreen::ServerScenarioOptionsScreen(string filename)
 {
     ScenarioInfo info(filename);
+    scenario_filename = filename;
+    scenario_name = info.name;
     scenario_settings = {};
 
     // Background elements.
@@ -420,25 +533,85 @@ ServerScenarioOptionsScreen::ServerScenarioOptionsScreen(string filename)
     row->setSize(GuiElement::GuiSizeMax, 50.0f)
        ->setAttribute("margin", "0, 0, 50, 0");
 
+#ifdef __EMSCRIPTEN__
+    browser_status_label = new GuiLabel(container, "BROWSER_ASSET_STATUS", "", 24.0f);
+    browser_status_label->setSize(GuiElement::GuiSizeMax, 40.0f);
+    browser_status_label->setVisible(false);
+#else
+    browser_status_label = nullptr;
+#endif
+
     // Close server button.
     (new GuiButton(row, "BACK", tr("Back"), [this]() {
+#ifdef __EMSCRIPTEN__
+        clearBrowserScenarioAssetRequest(scenario_filename);
+#endif
         new ServerScenarioSelectionScreen();
         destroy();
     }))->setPosition(-250.0f, 0.0f, sp::Alignment::BottomCenter)
        ->setSize(300.0f, GuiElement::GuiSizeMax);
 
     // Start server button.
-    start_button = new GuiButton(row, "START_SCENARIO", tr("Start scenario"), [this, info, filename]() {
-        // Start the selected scenario.
-        gameGlobalInfo->scenario = info.name;
-        gameGlobalInfo->startScenario(filename, this->scenario_settings);
-
-        // Destroy this screen and move on to ship selection.
-        destroy();
-        returnToShipSelection(getRenderLayer());
+    start_button = new GuiButton(row, "START_SCENARIO", tr("Start scenario"), [this]() {
+#ifdef __EMSCRIPTEN__
+        if (browserLocalSessionEnabled())
+        {
+            if (browserScenarioAssetsReady(scenario_filename))
+            {
+                startScenarioWhenReady();
+                return;
+            }
+            waiting_for_browser_assets = true;
+            pending_browser_asset_seconds = 0.0f;
+            if (browser_status_label)
+            {
+                browser_status_label->setVisible(true);
+                browser_status_label->setText(tr("Requesting browser scenario assets..."));
+            }
+            start_button->disable();
+            requestBrowserScenarioAssets(scenario_filename, true);
+            return;
+        }
+#endif
+        startScenarioWhenReady();
     });
     start_button
         ->setPosition(250.0f, 0.0f, sp::Alignment::BottomCenter)
         ->setSize(300.0f, GuiElement::GuiSizeMax)
         ->setEnable(scenario_settings.size() >= info.settings.size());
+}
+
+void ServerScenarioOptionsScreen::startScenarioWhenReady()
+{
+#ifdef __EMSCRIPTEN__
+    clearBrowserScenarioAssetRequest(scenario_filename);
+#endif
+    gameGlobalInfo->scenario = scenario_name;
+    gameGlobalInfo->startScenario(scenario_filename, this->scenario_settings);
+    destroy();
+    returnToShipSelection(getRenderLayer());
+}
+
+void ServerScenarioOptionsScreen::update(float delta)
+{
+#ifdef __EMSCRIPTEN__
+    if (!browserLocalSessionEnabled())
+        return;
+    if (!waiting_for_browser_assets)
+        return;
+    if (browser_status_label && !browser_status_label->isVisible())
+        browser_status_label->setVisible(true);
+    string status_message;
+    if (handlePendingBrowserScenarioRequest(scenario_filename, delta, pending_browser_asset_seconds, start_button, &status_message))
+    {
+        waiting_for_browser_assets = false;
+        startScenarioWhenReady();
+    }
+    if (browser_status_label && !status_message.empty())
+        browser_status_label->setText(status_message);
+    if (browserScenarioAssetsFailed(scenario_filename) || pending_browser_asset_seconds == 0.0f)
+        waiting_for_browser_assets = false;
+#else
+    (void)delta;
+#endif
 }

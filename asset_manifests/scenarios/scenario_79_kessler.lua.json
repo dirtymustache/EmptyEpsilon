@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "scenario_id": "scenario_79_kessler",
+  "scenario_file": "scenario_79_kessler.lua",
+  "revision": 2,
+  "required_bundles": [
+    "scenario_resources_common",
+    "pack_angryfly"
+  ],
+  "optional_bundles": []
+}

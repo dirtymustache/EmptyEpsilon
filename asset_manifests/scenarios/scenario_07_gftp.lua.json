@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "scenario_id": "scenario_07_gftp",
+  "scenario_file": "scenario_07_gftp.lua",
+  "revision": 2,
+  "required_bundles": [
+    "scenario_resources_common",
+    "pack_angryfly",
+    "pack_msgamedev"
+  ],
+  "optional_bundles": []
+}

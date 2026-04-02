@@ -1,6 +1,7 @@
 #include "packResourceProvider.h"
 
 #include <cstdio>
+#include <set>
 #include <SDL_endian.h>
 #include <SDL_rwops.h>
 
@@ -15,6 +16,10 @@
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
 #include <SDL.h>
+#elif defined(__EMSCRIPTEN__)
+#include <filesystem>
+#include <dirent.h>
+#include <emscripten.h>
 #else
 #include <filesystem>
 #endif
@@ -82,7 +87,50 @@ std::vector<string> PackResourceProvider::findResources(const string searchPatte
 
 void PackResourceProvider::addPackResourcesForDirectory(const string directory)
 {
-#if !defined(ANDROID)
+#if defined(__EMSCRIPTEN__)
+    // Use POSIX opendir/readdir directly — std::filesystem::directory_iterator
+    // may not reliably see files written to MEMFS via FS.writeFile before main().
+    auto stripped = directory.rstrip("/");
+    DIR* dir = opendir(stripped.c_str());
+    if (!dir)
+    {
+        // Try absolute path in case CWD is unexpected
+        string abs = "/" + stripped;
+        dir = opendir(abs.c_str());
+        if (!dir)
+        {
+            LOG(INFO) << "Skipping pack scan for missing directory " << directory;
+            EM_ASM({
+                if (typeof window.EmptyEpsilonDiag === "function")
+                    window.EmptyEpsilonDiag("pack scan: no directory " + UTF8ToString($0));
+            }, directory.c_str());
+            return;
+        }
+        EM_ASM({
+            if (typeof window.EmptyEpsilonDiag === "function")
+                window.EmptyEpsilonDiag("pack scan: opened absolute path /" + UTF8ToString($0));
+        }, stripped.c_str());
+    }
+    int found = 0;
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr)
+    {
+        string name = string(entry->d_name);
+        if (name == "." || name == "..")
+            continue;
+        if (name.lower().endswith(".pack"))
+        {
+            string full = stripped + "/" + name;
+            registerPackFile(full);
+            ++found;
+        }
+    }
+    closedir(dir);
+    EM_ASM({
+        if (typeof window.EmptyEpsilonDiag === "function")
+            window.EmptyEpsilonDiag("pack scan: found " + $0 + " pack(s) in " + UTF8ToString($1));
+    }, found, directory.c_str());
+#elif !defined(ANDROID)
     namespace fs = std::filesystem;
     const fs::path root{ directory.data() };
 
@@ -98,7 +146,7 @@ void PackResourceProvider::addPackResourcesForDirectory(const string directory)
         if (!error_code)
         {
             if (!entry.is_directory() && string { entry.path().extension().u8string() }.lower() == ".pack")
-                new PackResourceProvider(entry.path().u8string());
+                registerPackFile(entry.path().u8string());
         }
         else
             LOG(WARNING, entry.path().u8string(), " encountered an error: ", error_code.message());
@@ -146,6 +194,17 @@ void PackResourceProvider::addPackResourcesForDirectory(const string directory)
         }
     }
 #endif
+}
+
+void PackResourceProvider::registerPackFile(const string& path)
+{
+    static std::set<string> registered;
+    if (registered.count(path) == 0)
+    {
+        registered.insert(path);
+        LOG(INFO) << "Browser: mounting pack " << path;
+        new PackResourceProvider(path);
+    }
 }
 
 PackResourceStream::PackResourceStream(string filename, PackResourceInfo info)

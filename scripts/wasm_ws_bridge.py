@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-"""Minimal WebSocket-to-TCP bridge for the EmptyEpsilon wasm client.
-
-This is a small local prototype intended for browser testing:
+"""WebSocket-to-TCP bridge for the EmptyEpsilon wasm client.
 
 browser wasm client <-> websocket bridge <-> native EmptyEpsilon server
 
-It supports a single websocket hop and forwards binary messages to the native
-TCP server as raw payloads. It is deliberately minimal and is not meant to be
-internet-exposed as-is.
+Forwards binary WebSocket frames to the native TCP server and back.
+Supports WSS via --tls-cert / --tls-key.
 """
 
 from __future__ import annotations
@@ -17,6 +14,7 @@ import asyncio
 import base64
 import hashlib
 import logging
+import signal
 import ssl
 import struct
 from typing import Optional
@@ -246,16 +244,33 @@ async def handle_client(
     ws_writer: asyncio.StreamWriter,
     target_host: str,
     target_port: int,
+    idle_timeout: float,
+    connection_counter: list[int],
+    max_connections: int,
 ) -> None:
     peer = ws_writer.get_extra_info("peername")
-    logging.info("bridge: websocket client connected from %s", peer)
+
+    if connection_counter[0] >= max_connections:
+        logging.warning("bridge: connection limit reached (%d), rejecting %s", max_connections, peer)
+        try:
+            await send_ws_close(ws_writer)
+        except Exception:
+            pass
+        ws_writer.close()
+        return
+
+    connection_counter[0] += 1
+    logging.info("bridge: websocket client connected from %s (%d/%d)", peer, connection_counter[0], max_connections)
+
     tcp_reader: Optional[asyncio.StreamReader] = None
     tcp_writer: Optional[asyncio.StreamWriter] = None
     try:
-        await accept_websocket(ws_reader, ws_writer)
+        await asyncio.wait_for(accept_websocket(ws_reader, ws_writer), timeout=10.0)
         logging.info("bridge: websocket upgrade complete")
 
-        tcp_reader, tcp_writer = await asyncio.open_connection(target_host, target_port)
+        tcp_reader, tcp_writer = await asyncio.wait_for(
+            asyncio.open_connection(target_host, target_port), timeout=10.0
+        )
         logging.info("bridge: connected to native server %s:%d", target_host, target_port)
 
         ws_to_tcp = asyncio.create_task(pump_ws_to_tcp(ws_reader, ws_writer, tcp_writer))
@@ -264,20 +279,27 @@ async def handle_client(
         done, pending = await asyncio.wait(
             {ws_to_tcp, tcp_to_ws},
             return_when=asyncio.FIRST_COMPLETED,
+            timeout=idle_timeout if idle_timeout > 0 else None,
         )
         for task in pending:
             task.cancel()
-        for task in done:
-            exc = task.exception()
-            if exc:
-                raise exc
+        if not done:
+            logging.info("bridge: idle timeout reached for %s", peer)
+        else:
+            for task in done:
+                exc = task.exception()
+                if exc:
+                    raise exc
+    except asyncio.TimeoutError:
+        logging.info("bridge: timeout for %s", peer)
     except asyncio.IncompleteReadError:
-        logging.info("bridge: connection closed")
+        logging.info("bridge: connection closed by %s", peer)
     except WebSocketProtocolError as exc:
-        logging.warning("bridge: websocket protocol error: %s", exc)
+        logging.warning("bridge: websocket protocol error from %s: %s", peer, exc)
     except OSError as exc:
-        logging.warning("bridge: socket error: %s", exc)
+        logging.warning("bridge: socket error for %s: %s", peer, exc)
     finally:
+        connection_counter[0] -= 1
         if tcp_writer is not None:
             tcp_writer.close()
             await tcp_writer.wait_closed()
@@ -287,7 +309,7 @@ async def handle_client(
             pass
         ws_writer.close()
         await ws_writer.wait_closed()
-        logging.info("bridge: client disconnected")
+        logging.info("bridge: client disconnected %s (%d/%d active)", peer, connection_counter[0], max_connections)
 
 
 async def main_async(args: argparse.Namespace) -> None:
@@ -299,8 +321,17 @@ async def main_async(args: argparse.Namespace) -> None:
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ssl_context.load_cert_chain(certfile=args.tls_cert, keyfile=args.tls_key)
         scheme = "wss"
+
+    connection_counter: list[int] = [0]
+
     server = await asyncio.start_server(
-        lambda reader, writer: handle_client(reader, writer, args.target_host, args.target_port),
+        lambda reader, writer: handle_client(
+            reader, writer,
+            args.target_host, args.target_port,
+            args.idle_timeout,
+            connection_counter,
+            args.max_connections,
+        ),
         args.listen_host,
         args.listen_port,
         ssl=ssl_context,
@@ -309,17 +340,34 @@ async def main_async(args: argparse.Namespace) -> None:
     for sock in server.sockets or []:
         logging.info("bridge: listening on %s://%s:%d", scheme, sock.getsockname()[0], sock.getsockname()[1])
     logging.info("bridge: forwarding to tcp://%s:%d", args.target_host, args.target_port)
+    logging.info("bridge: max connections=%d idle_timeout=%ss", args.max_connections, args.idle_timeout)
+
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
+
+    def _handle_signal() -> None:
+        logging.info("bridge: shutdown signal received, stopping gracefully")
+        stop_event.set()
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, _handle_signal)
 
     async with server:
-        await server.serve_forever()
+        await stop_event.wait()
+        server.close()
+        await server.wait_closed()
+
+    logging.info("bridge: stopped")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run a local websocket-to-tcp bridge for EmptyEpsilon wasm testing.")
-    parser.add_argument("--listen-host", default="127.0.0.1", help="WebSocket listen host")
+    parser = argparse.ArgumentParser(description="WebSocket-to-TCP bridge for EmptyEpsilon wasm clients.")
+    parser.add_argument("--listen-host", default="0.0.0.0", help="WebSocket listen host (default: 0.0.0.0)")
     parser.add_argument("--listen-port", type=int, default=35667, help="WebSocket listen port")
     parser.add_argument("--target-host", default="127.0.0.1", help="Native EmptyEpsilon server host")
     parser.add_argument("--target-port", type=int, default=35666, help="Native EmptyEpsilon server TCP port")
+    parser.add_argument("--max-connections", type=int, default=20, help="Max concurrent WebSocket connections (default: 20)")
+    parser.add_argument("--idle-timeout", type=float, default=300.0, help="Seconds before idle connection is dropped (default: 300, 0=disabled)")
     parser.add_argument("--tls-cert", help="PEM certificate file to enable WSS")
     parser.add_argument("--tls-key", help="PEM private key file to enable WSS")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
@@ -330,12 +378,10 @@ def main() -> int:
     args = parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(message)s",
+        format="%(asctime)s %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
     )
-    try:
-        asyncio.run(main_async(args))
-    except KeyboardInterrupt:
-        logging.info("bridge: stopped")
+    asyncio.run(main_async(args))
     return 0
 
 

@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "bundle_id": "pack_angryfly",
+  "description": "Ship and station models from Angryfly.pack.",
+  "include": [
+    { "source": "packs/Angryfly.pack", "target": "packs/Angryfly.pack" }
+  ]
+}

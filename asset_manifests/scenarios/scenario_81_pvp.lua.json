@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "scenario_id": "scenario_81_pvp",
+  "scenario_file": "scenario_81_pvp.lua",
+  "revision": 2,
+  "required_bundles": [
+    "scenario_resources_common",
+    "pack_angryfly",
+    "pack_msgamedev"
+  ],
+  "optional_bundles": []
+}

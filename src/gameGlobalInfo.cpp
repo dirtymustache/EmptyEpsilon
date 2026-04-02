@@ -12,11 +12,25 @@
 #include "ecs/query.h"
 #include "menus/luaConsole.h"
 #include "playerInfo.h"
+#include "main.h"
 #include <SDL_assert.h>
+#include <chrono>
+#include <string>
 
 P<GameGlobalInfo> gameGlobalInfo;
 
 REGISTER_MULTIPLAYER_CLASS(GameGlobalInfo, "GameGlobalInfo")
+
+namespace
+{
+string buildBrowserAssetSessionId(const string& scenario_filename)
+{
+    auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    return scenario_filename + ":" + std::to_string(now);
+}
+}
+
 GameGlobalInfo::GameGlobalInfo()
 : MultiplayerObject("GameGlobalInfo")
 {
@@ -35,6 +49,10 @@ GameGlobalInfo::GameGlobalInfo()
     allow_main_screen_long_range_radar = true;
     gm_control_code = "";
     elapsed_time = 0.0f;
+    browser_asset_session_id = "";
+    browser_asset_manifest_url = "";
+    browser_asset_manifest_revision = "";
+    browser_asset_scenario_file = "";
 
     intercept_all_comms_to_gm = false;
 
@@ -52,6 +70,10 @@ GameGlobalInfo::GameGlobalInfo()
     registerMemberReplication(&gm_control_code);
     registerMemberReplication(&elapsed_time, 0.1);
     registerMemberReplication(&default_skybox);
+    registerMemberReplication(&browser_asset_session_id);
+    registerMemberReplication(&browser_asset_manifest_url);
+    registerMemberReplication(&browser_asset_manifest_revision);
+    registerMemberReplication(&browser_asset_scenario_file);
 }
 
 //due to a suspected compiler bug this deconstructor needs to be explicitly defined
@@ -101,6 +123,15 @@ void GameGlobalInfo::setVictory(string faction_name)
 
 void GameGlobalInfo::update(float delta)
 {
+#ifdef __EMSCRIPTEN__
+    static string last_notified_browser_asset_revision;
+    if (game_client && !browser_asset_manifest_url.empty() && !browser_asset_manifest_revision.empty() && browser_asset_manifest_revision != last_notified_browser_asset_revision)
+    {
+        notifyBrowserRemoteSessionManifestChanged(browser_asset_manifest_url, browser_asset_manifest_revision);
+        last_notified_browser_asset_revision = browser_asset_manifest_revision;
+    }
+#endif
+
     if (global_message_timeout > 0.0f)
     {
         global_message_timeout -= delta;
@@ -284,6 +315,10 @@ void GameGlobalInfo::reset()
     global_message_timeout = 0.0f;
     banner_string = "";
     default_skybox = "default";
+    browser_asset_session_id = "";
+    browser_asset_manifest_url = "";
+    browser_asset_manifest_revision = "";
+    browser_asset_scenario_file = "";
 
     //Pause the game
     engine->setGameSpeed(0.0);
@@ -332,6 +367,11 @@ void GameGlobalInfo::setScenarioSettings(const string filename, std::unordered_m
 void GameGlobalInfo::startScenario(string filename, std::unordered_map<string, string> new_settings)
 {
     reset();
+
+    browser_asset_scenario_file = filename;
+    browser_asset_session_id = buildBrowserAssetSessionId(filename);
+    browser_asset_manifest_revision = browser_asset_session_id;
+    browser_asset_manifest_url = "/admin-api/browser/session-manifest.json?session_id=" + browser_asset_session_id;
 
     i18n::reset();
     i18n::load("locale/main." + PreferencesManager::get("language", "en") + ".po");

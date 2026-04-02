@@ -24,6 +24,7 @@ public:
     virtual std::vector<string> findResources(const string searchPattern) override;
 
     static void addPackResourcesForDirectory(const string directory);
+    static void registerPackFile(const string& path);
 };
 
 class PackResourceStream : public ResourceStream

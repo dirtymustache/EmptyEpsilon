@@ -33,6 +33,7 @@ public:
     sp::Texture* getSpecularTexture();
     sp::Texture* getIlluminationTexture();
     sp::Texture* getNormalTexture();
+    static void resetAllTexturePtrs();
 };
 
 class EngineEmitter

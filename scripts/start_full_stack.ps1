@@ -12,7 +12,7 @@ param(
     [int]$ServerPort = 35666,
     [int]$BridgePort = 35667,
     [int]$WebPort = 18086,
-    [int]$AdminPort = 8080,
+    [int]$AdminPort = 8181,
     [switch]$NoBrowser,
     [switch]$NoNativeClient
 )

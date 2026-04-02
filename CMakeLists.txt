@@ -728,6 +728,8 @@ if(EMSCRIPTEN)
         "${CMAKE_SOURCE_DIR}/web/wasm_shell.html"
     )
 
+    configure_file(${CMAKE_SOURCE_DIR}/web/admin.html ${CMAKE_BINARY_DIR}/admin.html COPYONLY)
+
     add_custom_target(prepare_wasm_assets
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/prepare_wasm_assets.py --source ${CMAKE_SOURCE_DIR} --output ${EE_WASM_ASSET_DIR} --profile ${EE_WASM_ASSET_PROFILE}
         BYPRODUCTS "${EE_WASM_ASSET_DIR}/.profile-${EE_WASM_ASSET_PROFILE}"
@@ -743,6 +745,7 @@ if(EMSCRIPTEN)
         "-sNO_EXIT_RUNTIME=1"
         "-sENVIRONMENT=web"
         "-sMAX_WEBGL_VERSION=2"
+        "-sEXPORTED_RUNTIME_METHODS=ccall"
         "-lidbfs.js"
         "SHELL:--use-preload-cache"
         "SHELL:--indexedDB-name=EmptyEpsilonPreloadCache"

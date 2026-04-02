@@ -20,6 +20,208 @@ EmptyEpsilon settings are stored in an `options.ini` file located in either the 
 
 See this repository's wiki for guidance on [building EmptyEpsilon from source](https://github.com/daid/EmptyEpsilon/wiki/Build). Several Build subpages on the wiki provide steps for building on specific operating systems, distributions, or hardware.
 
+#### Notes from a clean Windows machine
+
+If you're starting from a fresh Windows dev box, the biggest time saver is to install the full native and wasm toolchains before trying to configure anything.
+
+-   Native Windows builds worked here with Visual Studio 2026 Community using the `Desktop development with C++` workload.
+-   Use the Visual Studio Developer Command Prompt or `VsDevCmd.bat` before running `cmake`, otherwise `cl.exe` and the Windows SDK may not be visible to CMake.
+-   The current SeriousProton input code expects newer SDL2 mouse wheel fields, so use SDL2 `2.32.8` or newer for Windows builds. Older Visual C++ SDL2 packages such as `2.0.16` will fail to compile `SeriousProton/src/windowManager.cpp`.
+-   A working local Ninja generator setup on Windows looked like:
+    `cmake -S . -B build-win-msvc -G Ninja -DSDL2_DIR=<path-to-sdl2-config-dir> -DSERIOUS_PROTON_DIR=../SeriousProton -DWITH_DISCORD=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo`
+-   Keep the EmptyEpsilon and SeriousProton checkouts side by side. A working layout here was:
+    `../EmptyEpsilon`, `../SeriousProton`, and `../emsdk`
+-   If you use a Conda-provided SDL2/FreeType on Windows, launch `EmptyEpsilon.exe` with both `build-win-msvc/` and the Conda `Library/bin` directory at the front of `PATH`, otherwise Windows can pick up the wrong DLLs from unrelated software already on `PATH`.
+-   Launch the native server and client from the EmptyEpsilon repository root as the working directory, not from `build-win-msvc/`, so the game can find `packs/`, `gui/`, and the rest of the staged assets.
+-   The first WebAssembly build is slow on a clean machine because Emscripten populates its cache and builds bundled libraries. Subsequent wasm builds are much faster.
+-   For the wasm target on Windows, it helps to point CMake at the Emscripten Python explicitly if detection fails:
+    `-DPython3_EXECUTABLE=<emsdk>/python/<version>/python.exe`
+-   On Windows, `emcmake cmake` may mis-detect a compiler if `CC` or `CXX` are already set in the environment. Clearing those variables before configuring the wasm build avoided broken compiler detection here.
+-   If plain `ninja` is not already on `PATH`, adding the Visual Studio CMake/Ninja directory also worked for the wasm configure/build path:
+    `C:\Program Files (x86)\Microsoft Visual Studio\<version>\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja`
+
+### WebAssembly browser build
+
+An experimental browser target is available for running EmptyEpsilon as a WebAssembly + WebGL app with Emscripten.
+
+Current scope:
+
+-   boots in a browser canvas
+-   supports a local spectator slice
+-   supports a browser client path through a local WebSocket bridge to a native EmptyEpsilon server
+-   includes an admin page for HTTP-based server control and status
+
+Current limitations:
+
+-   still experimental
+-   browser multiplayer requires the bridge helper and a native server
+-   direct LAN discovery and native socket networking are not available in the browser
+-   host and browser client still need to run the same EmptyEpsilon version
+
+#### Prerequisites
+
+-   Emscripten SDK installed and activated
+-   CMake
+-   Ninja
+-   Python 3 available to both `emsdk` and CMake
+-   a sibling [SeriousProton](https://github.com/daid/SeriousProton) checkout at `../SeriousProton`
+
+#### Build the browser target
+
+From the EmptyEpsilon repository root:
+
+```bash
+./scripts/build_wasm.sh
+```
+
+To build the heavier browser preload that includes the full staged asset set:
+
+```bash
+EE_WASM_ASSET_PROFILE=full ./scripts/build_wasm.sh
+```
+
+This produces browser artifacts in `build-wasm/`, including:
+
+-   `build-wasm/EmptyEpsilon.html`
+-   `build-wasm/EmptyEpsilon.js`
+-   `build-wasm/EmptyEpsilon.wasm`
+-   `build-wasm/EmptyEpsilon.data`
+
+#### Serve the browser build
+
+Use the local cache-aware helper instead of a plain static file server:
+
+```bash
+python scripts/serve_wasm.py --host 127.0.0.1 --port 18086 --directory build-wasm
+```
+
+Then open:
+
+```text
+http://127.0.0.1:18086/EmptyEpsilon.html
+```
+
+#### Run the full local browser stack
+
+1. Start a native server:
+
+```powershell
+.\build-win-msvc\EmptyEpsilon.exe headless=1 server_scenario=scenario_00_basic.lua server_port=35666 httpserver=8080
+```
+
+Run that command from the EmptyEpsilon repository root. The current code path expects `server_scenario=...`; the older `headless=<scenario>` form is not the reliable startup path on this branch.
+
+2. Start the WebSocket bridge:
+
+```bash
+python scripts/wasm_ws_bridge.py --listen-host 127.0.0.1 --listen-port 35667 --target-host 127.0.0.1 --target-port 35666 --verbose
+```
+
+3. Start the browser HTTP server:
+
+```bash
+python scripts/serve_wasm.py --host 127.0.0.1 --port 18086 --directory build-wasm
+```
+
+4. Open the browser client:
+
+```text
+http://127.0.0.1:18086/EmptyEpsilon.html?bridge=ws://127.0.0.1:35667&station=relay&username=web_user
+```
+
+#### One-command local stack helpers on Windows
+
+After building both the native and wasm targets, you can use the PowerShell helpers in `scripts/` to cycle the whole local stack:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_full_stack.ps1
+```
+
+That starts:
+
+- the native headless server on `35666`
+- the websocket bridge on `35667`
+- the wasm HTTP server on `18086`
+- a native autoconnect client
+- the browser client URL
+- the browser admin page at `http://127.0.0.1:18086/admin.html`
+
+To stop the same stack:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\stop_full_stack.ps1
+```
+
+The start helper writes logs under `logs/fullstack-<timestamp>/` and stores the latest process info in `logs/fullstack-state.json`.
+
+#### HTTPS / WSS for LAN testing on Windows
+
+If you only test the browser build on the same Windows machine, `localhost` is usually enough and you do not need custom certificates. If you want to load the web client from another device on your LAN, especially an iPad or iPhone, and use browser features such as microphone access, serve the page over `https://` and the bridge over `wss://`.
+
+The helper scripts in this repository expect PEM files:
+
+-   a trusted local CA certificate
+-   a server certificate in `.pem` format
+-   a matching private key in `.pem` format
+
+The simplest Windows-native path is [`mkcert`](https://github.com/FiloSottile/mkcert):
+
+```powershell
+mkcert -install
+New-Item -ItemType Directory -Force local-dev-tls | Out-Null
+mkcert -cert-file local-dev-tls/192.168.4.22.cert.pem -key-file local-dev-tls/192.168.4.22.key.pem 192.168.4.22
+```
+
+Then export or copy the mkcert local CA certificate to a file such as `local-dev-tls/local-dev-ca.cer` and import that CA into:
+
+-   Windows `Trusted Root Certification Authorities`
+-   any iPad or iPhone that should trust the local development host
+
+If you prefer to reuse the repository helper, [scripts/generate_local_tls.sh](scripts/generate_local_tls.sh) can generate the same PEM-style assets from Git Bash or WSL, as long as `openssl` is available.
+
+Start the secure browser stack by passing the generated cert and key to both Python helpers:
+
+```powershell
+python scripts/wasm_ws_bridge.py --listen-host 0.0.0.0 --listen-port 35667 --target-host 127.0.0.1 --target-port 35666 --tls-cert local-dev-tls/192.168.4.22.cert.pem --tls-key local-dev-tls/192.168.4.22.key.pem --verbose
+python scripts/serve_wasm.py --host 0.0.0.0 --port 18086 --directory build-wasm --tls-cert local-dev-tls/192.168.4.22.cert.pem --tls-key local-dev-tls/192.168.4.22.key.pem --proxy-admin-base http://127.0.0.1:8080
+```
+
+Or use the PowerShell helper with the same `local-dev-tls/<host>.cert.pem` convention:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_full_stack.ps1 -BindHost 0.0.0.0 -PublicHost 192.168.4.22 -UseTls
+```
+
+When `-UseTls` is set and no explicit `-TlsCertPath` or `-TlsKeyPath` is provided, the helper looks for:
+
+- `local-dev-tls/<PublicHost>.cert.pem`
+- `local-dev-tls/<PublicHost>.key.pem`
+
+Then open the client from another device with the matching LAN host or IP:
+
+```text
+https://192.168.4.22:18086/EmptyEpsilon.html?bridge=wss://192.168.4.22:35667&station=relay&username=web_user
+```
+
+If the Windows machine's LAN IP changes, regenerate the server certificate for the new host or IP. Keep the private key and any local CA material out of source control; the repository's `.gitignore` already excludes `local-dev-tls/`.
+
+#### Useful browser pages
+
+-   Main browser launcher:
+    `http://127.0.0.1:18086/EmptyEpsilon.html`
+-   Browser bridge launch example:
+    `http://127.0.0.1:18086/EmptyEpsilon.html?bridge=ws://127.0.0.1:35667&station=relay&username=web_user`
+-   Server admin page:
+    `http://127.0.0.1:18086/admin.html`
+
+The admin page talks to the experimental HTTP Lua endpoint on the native server and shows current server status, scenario, mission time, pause state, and connected players.
+
+More browser-target details are documented in:
+
+-   [docs/wasm_build.md](docs/wasm_build.md)
+-   [docs/wasm_networking_notes.md](docs/wasm_networking_notes.md)
+-   [docs/wasm_compatibility_report.md](docs/wasm_compatibility_report.md)
+
 ## Community
 
 For information on EmptyEpsilon's Discord and forums communities, and regularly planned hosted game sessions, see the [EmptyEpsilon website](https://daid.github.io/EmptyEpsilon/#tabs=6). If you run public EmptyEpsilon games or use it in your gaming projects, [file an issue](https://github.com/daid/EmptyEpsilon/issues) to request to be added to that page.

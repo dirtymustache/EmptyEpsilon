@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "bundle_id": "pack_msgamedev",
+  "description": "Modern fighter and corvette models from msgamedev.pack.",
+  "include": [
+    { "source": "packs/msgamedev.pack", "target": "packs/msgamedev.pack" }
+  ]
+}
