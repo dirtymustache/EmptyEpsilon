@@ -99,6 +99,11 @@ This bridge is still intentionally minimal. It forwards websocket binary message
 EmptyEpsilon TCP server. If you want to put it behind a reverse proxy later, a same-origin path
 such as `/bridge/` works well for browser clients.
 
+When using a hosted reverse-proxied bridge, prefer a URL like `wss://example.com/bridge/`
+instead of exposing a separate `:35667` port publicly. The browser/runtime code now treats
+that as the production default on standard `https` origins, while local nonstandard ports
+still default to `ws://host:35667` for development.
+
 ## Optional HTTP Server Control
 
 The headless EmptyEpsilon server also has an experimental HTTP Lua endpoint. To enable it,
