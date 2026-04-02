@@ -1,6 +1,7 @@
 #include "packResourceProvider.h"
 
 #include <cstdio>
+#include <set>
 #include <SDL_endian.h>
 #include <SDL_rwops.h>
 
@@ -15,6 +16,9 @@
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
 #include <SDL.h>
+#elif defined(__EMSCRIPTEN__)
+#include <filesystem>
+#include <dirent.h>
 #else
 #include <filesystem>
 #endif
@@ -82,7 +86,33 @@ std::vector<string> PackResourceProvider::findResources(const string searchPatte
 
 void PackResourceProvider::addPackResourcesForDirectory(const string directory)
 {
-#if !defined(ANDROID)
+#if defined(__EMSCRIPTEN__)
+    // MEMFS-backed files written before startup are more reliably visible through
+    // POSIX directory iteration than through std::filesystem in wasm builds.
+    auto stripped = directory.rstrip("/");
+    DIR* dir = opendir(stripped.c_str());
+    if (!dir)
+    {
+        string abs = "/" + stripped;
+        dir = opendir(abs.c_str());
+        if (!dir)
+        {
+            LOG(INFO) << "Skipping pack scan for missing directory " << directory;
+            return;
+        }
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr)
+    {
+        string name = string(entry->d_name);
+        if (name == "." || name == "..")
+            continue;
+        if (name.lower().endswith(".pack"))
+            registerPackFile(stripped + "/" + name);
+    }
+    closedir(dir);
+#elif !defined(ANDROID)
     namespace fs = std::filesystem;
     const fs::path root{ directory.data() };
 
@@ -98,7 +128,7 @@ void PackResourceProvider::addPackResourcesForDirectory(const string directory)
         if (!error_code)
         {
             if (!entry.is_directory() && string { entry.path().extension().u8string() }.lower() == ".pack")
-                new PackResourceProvider(entry.path().u8string());
+                registerPackFile(entry.path().u8string());
         }
         else
             LOG(WARNING, entry.path().u8string(), " encountered an error: ", error_code.message());
@@ -146,6 +176,16 @@ void PackResourceProvider::addPackResourcesForDirectory(const string directory)
         }
     }
 #endif
+}
+
+void PackResourceProvider::registerPackFile(const string& path)
+{
+    static std::set<string> registered;
+    if (registered.count(path) == 0)
+    {
+        registered.insert(path);
+        new PackResourceProvider(path);
+    }
 }
 
 PackResourceStream::PackResourceStream(string filename, PackResourceInfo info)
