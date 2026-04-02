@@ -11,6 +11,7 @@ import ssl
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
 IMMUTABLE_SUFFIXES = {".png", ".jpg", ".jpeg", ".ogg", ".wav"}
@@ -18,6 +19,13 @@ IMMUTABLE_SUFFIXES = {".png", ".jpg", ".jpeg", ".ogg", ".wav"}
 
 class WasmRequestHandler(http.server.SimpleHTTPRequestHandler):
     proxy_base_url = ""
+    extra_static_root = None
+
+    def translate_path(self, path: str) -> str:
+        clean_path = Path(urlsplit(path).path)
+        if self.extra_static_root and clean_path == Path("/admin.html"):
+            return str((self.extra_static_root / "admin.html").resolve())
+        return super().translate_path(path)
 
     def end_headers(self) -> None:
         path = Path(self.translate_path(self.path))
@@ -89,6 +97,7 @@ def main() -> None:
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=18086)
     parser.add_argument("--directory", default="build-wasm")
+    parser.add_argument("--extra-static-root", help="Optional directory for serving extra static files like admin.html")
     parser.add_argument("--tls-cert", help="PEM certificate file to enable HTTPS")
     parser.add_argument("--tls-key", help="PEM private key file to enable HTTPS")
     parser.add_argument("--proxy-admin-base", default="http://127.0.0.1:8080", help="Optional base URL for proxying /admin-api/*")
@@ -99,6 +108,7 @@ def main() -> None:
 
     directory = str(Path(args.directory).resolve())
     WasmRequestHandler.proxy_base_url = args.proxy_admin_base.rstrip("/")
+    WasmRequestHandler.extra_static_root = Path(args.extra_static_root).resolve() if args.extra_static_root else None
     handler = functools.partial(WasmRequestHandler, directory=directory)
     with http.server.ThreadingHTTPServer((args.host, args.port), handler) as httpd:
         scheme = "http"
