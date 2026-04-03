@@ -22,6 +22,7 @@ TEXT_SUFFIXES = {".css", ".html", ".js", ".json", ".map", ".txt"}
 class WasmRequestHandler(http.server.SimpleHTTPRequestHandler):
     proxy_base_url = ""
     extra_static_root = None
+    cache_mode = "local"
 
     def translate_path(self, path: str) -> str:
         clean_path = Path(urlsplit(path).path)
@@ -53,10 +54,17 @@ class WasmRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Expires", "0")
         elif suffix in IMMUTABLE_SUFFIXES:
             self.send_header("Cache-Control", "public, max-age=31536000, immutable")
-        elif suffix in {".data", ".wasm", ".js", ".html"}:
+        elif suffix == ".html":
             self.send_header("Cache-Control", "no-store, max-age=0, must-revalidate")
             self.send_header("Pragma", "no-cache")
             self.send_header("Expires", "0")
+        elif suffix in {".data", ".wasm", ".js"}:
+            if self.cache_mode == "production":
+                self.send_header("Cache-Control", "public, max-age=0, s-maxage=86400, must-revalidate")
+            else:
+                self.send_header("Cache-Control", "no-store, max-age=0, must-revalidate")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Expires", "0")
         self.send_header("Access-Control-Allow-Origin", "*")
         super().end_headers()
 
@@ -151,6 +159,7 @@ def main() -> None:
     parser.add_argument("--tls-cert", help="PEM certificate file to enable HTTPS")
     parser.add_argument("--tls-key", help="PEM private key file to enable HTTPS")
     parser.add_argument("--proxy-admin-base", default="http://127.0.0.1:8181", help="Optional base URL for proxying /admin-api/*")
+    parser.add_argument("--cache-mode", choices=("local", "production"), default="local", help="Cache profile for wasm/static assets")
     args = parser.parse_args()
 
     mimetypes.add_type("application/wasm", ".wasm")
@@ -160,6 +169,7 @@ def main() -> None:
     directory = str(Path(args.directory).resolve())
     WasmRequestHandler.proxy_base_url = args.proxy_admin_base.rstrip("/")
     WasmRequestHandler.extra_static_root = Path(args.extra_static_root).resolve() if args.extra_static_root else None
+    WasmRequestHandler.cache_mode = args.cache_mode
     handler = functools.partial(WasmRequestHandler, directory=directory)
     with http.server.ThreadingHTTPServer((args.host, args.port), handler) as httpd:
         scheme = "http"

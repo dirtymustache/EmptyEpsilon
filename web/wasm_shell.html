@@ -497,7 +497,6 @@
     const maxDiagLines = 120;
     const defaultBridgeHost = window.location.hostname || "127.0.0.1";
     const defaultBridgeScheme = window.location.protocol === "https:" ? "wss" : "ws";
-    const defaultBridgeUrl = defaultBridgeScheme + "://" + defaultBridgeHost + ":35667";
     const defaultSessionManifestUrl = params.get("sessionManifest") || "/admin-api/browser/session-manifest.json";
     const loadedBrowserBundles = new Map();
     const browserScenarioRequestState = Object.create(null);
@@ -941,6 +940,11 @@
         setStatus("Scenario asset update failed: " + error, true);
       });
     };
+    const explicitPort = window.location.port || "";
+    const isLikelyLocalDev = explicitPort && explicitPort !== "80" && explicitPort !== "443";
+    const defaultBridgeUrl = isLikelyLocalDev
+      ? defaultBridgeScheme + "://" + defaultBridgeHost + ":35667"
+      : defaultBridgeScheme + "://" + window.location.host + "/bridge/";
 
     function sanitizeProfileName(value) {
       return String(value || "").trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");

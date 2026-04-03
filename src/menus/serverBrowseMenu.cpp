@@ -66,7 +66,10 @@ namespace
             "(function(){"
             "var host = window.location.hostname || '127.0.0.1';"
             "var scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';"
-            "return scheme + '://' + host + ':35667';"
+            "var explicitPort = window.location.port || '';"
+            "var isLikelyLocalDev = explicitPort && explicitPort !== '80' && explicitPort !== '443';"
+            "if (isLikelyLocalDev) return scheme + '://' + host + ':35667';"
+            "return scheme + '://' + window.location.host + '/bridge/';"
             "})()"
         );
         return script_result ? string{script_result} : "ws://127.0.0.1:35667";

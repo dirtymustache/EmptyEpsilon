@@ -328,12 +328,16 @@
     const linkWebClient = document.getElementById("link-web-client");
     const linkAdminPage = document.getElementById("link-admin-page");
     let scenarioCatalogue = [];
-    const bridgePort = "35667";
     const protocol = window.location.protocol === "https:" ? "https" : "http";
     const wsProtocol = protocol === "https" ? "wss" : "ws";
     const publicHost = window.location.hostname || "127.0.0.1";
     const origin = window.location.origin;
-    const webClientUrl = `${origin}/EmptyEpsilon.html?bridge=${wsProtocol}://${publicHost}:${bridgePort}&station=relay&username=web_user&diag=1`;
+    const explicitPort = window.location.port || "";
+    const isLikelyLocalDev = explicitPort && explicitPort !== "80" && explicitPort !== "443";
+    const bridgeUrl = isLikelyLocalDev
+      ? `${wsProtocol}://${publicHost}:35667`
+      : `${wsProtocol}://${window.location.host}/bridge/`;
+    const webClientUrl = `${origin}/EmptyEpsilon.html?bridge=${encodeURIComponent(bridgeUrl)}&station=relay&username=web_user&diag=1`;
     const adminPageUrl = `${origin}/admin.html`;
 
     function setQrCode(imgNode, linkNode, url) {
